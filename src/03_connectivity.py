@@ -259,6 +259,10 @@ def compute_all_connectivity(subject: str) -> pd.DataFrame:
     For every (seizure × window × band × method) combination,
     compute the connectivity matrix and save it to disk.
 
+    Saves incrementally after each seizure so that if Colab
+    disconnects halfway through, completed seizures are not lost.
+    On restart, already-computed matrices are skipped automatically.
+
     Returns a summary DataFrame of all computed matrices.
     """
     subject_proc_dir   = DATA_PROC   / subject
@@ -272,21 +276,44 @@ def compute_all_connectivity(subject: str) -> pd.DataFrame:
     # Get unique seizure IDs
     seizure_ids  = summary_df['seizure_id'].unique()
 
-    print(f"Computing connectivity for {subject}")
-    print(f"  Seizures : {len(seizure_ids)}")
-    print(f"  Windows  : {WINDOWS}")
-    print(f"  Bands    : {list(FREQ_BANDS.keys())}")
-    print(f"  Methods  : {METHODS}")
+    # ── Check for existing progress ────────────────────────────────────────
+    progress_path = ANNOT_DIR / f"{subject}_connectivity_summary.csv"
+    if progress_path.exists():
+        existing_df    = pd.read_csv(progress_path)
+        completed      = set(existing_df['seizure_id'].unique())
+        existing_records = existing_df.to_dict('records')
+        print(f"Resuming — found {len(completed)} already completed "
+              f"seizure(s): {completed}")
+    else:
+        completed        = set()
+        existing_records = []
 
-    total = len(seizure_ids) * len(WINDOWS) * len(FREQ_BANDS) * len(METHODS)
-    print(f"  Total matrices to compute: {total}")
+    print(f"\nComputing connectivity for {subject}")
+    print(f"  Seizures     : {len(seizure_ids)} total, "
+          f"{len(seizure_ids) - len(completed)} remaining")
+    print(f"  Windows      : {WINDOWS}")
+    print(f"  Bands        : {list(FREQ_BANDS.keys())}")
+    print(f"  Methods      : {METHODS}")
+
+    total_remaining = (
+        (len(seizure_ids) - len(completed)) *
+        len(WINDOWS) * len(FREQ_BANDS) * len(METHODS)
+    )
+    print(f"  Matrices remaining: {total_remaining}")
     print()
 
-    records = []
+    new_records = []
 
     # ── Outer loop: seizures ───────────────────────────────────────────────
     for sz_id in seizure_ids:
+
+        # Skip already completed seizures
+        if sz_id in completed:
+            print(f"── {sz_id}  [already done — skipping] ──")
+            continue
+
         print(f"── {sz_id} ──────────────────────────────────────")
+        seizure_records = []
 
         # ── Middle loop: windows ───────────────────────────────────────────
         for window in WINDOWS:
@@ -304,38 +331,40 @@ def compute_all_connectivity(subject: str) -> pd.DataFrame:
             band_results = {}
 
             for band_name, (fmin, fmax) in FREQ_BANDS.items():
-
                 band_results[band_name] = {}
 
                 for method in METHODS:
 
-                    # Compute connectivity matrix
-                    if method == "coherence":
-                        matrix = compute_coherence_matrix(
-                            epochs, SFREQ, fmin, fmax)
-
-                    elif method == "wpli":
-                        matrix = compute_wpli_matrix(
-                            epochs, SFREQ, fmin, fmax)
-
-                    elif method == "aec":
-                        matrix = compute_aec_matrix(
-                            epochs, SFREQ, fmin, fmax)
-
-                    # Save matrix
+                    # ── Skip if matrix file already exists ─────────────────
                     fname     = (f"{sz_id}_{window}_"
                                  f"{band_name}_{method}.npy")
                     save_path = subject_result_dir / fname
-                    np.save(save_path, matrix)
 
+                    if save_path.exists():
+                        # Load existing to get stats for summary
+                        matrix = np.load(save_path)
+                    else:
+                        # Compute connectivity matrix
+                        if method == "coherence":
+                            matrix = compute_coherence_matrix(
+                                epochs, SFREQ, fmin, fmax)
+                        elif method == "wpli":
+                            matrix = compute_wpli_matrix(
+                                epochs, SFREQ, fmin, fmax)
+                        elif method == "aec":
+                            matrix = compute_aec_matrix(
+                                epochs, SFREQ, fmin, fmax)
+
+                        # Save matrix immediately
+                        np.save(save_path, matrix)
+
+                    upper = matrix[np.triu_indices_from(matrix, k=1)]
                     band_results[band_name][method] = {
-                        "mean" : float(np.mean(matrix[
-                                    np.triu_indices_from(matrix, k=1)])),
-                        "std"  : float(np.std(matrix[
-                                    np.triu_indices_from(matrix, k=1)])),
+                        "mean" : float(np.mean(upper)),
+                        "std"  : float(np.std(upper)),
                     }
 
-                    records.append({
+                    seizure_records.append({
                         "subject"   : subject,
                         "seizure_id": sz_id,
                         "window"    : window,
@@ -348,7 +377,7 @@ def compute_all_connectivity(subject: str) -> pd.DataFrame:
 
             print("done")
 
-            # Print a quick summary table for this window
+            # Print quick summary table for this window
             print(f"       {'':10s} " +
                   " ".join(f"{m:>10s}" for m in METHODS))
             for band_name in FREQ_BANDS:
@@ -359,19 +388,35 @@ def compute_all_connectivity(subject: str) -> pd.DataFrame:
                 print(row_str)
             print()
 
-    # ── Save results summary ───────────────────────────────────────────────
-    results_df   = pd.DataFrame(records)
-    summary_path = ANNOT_DIR / f"{subject}_connectivity_summary.csv"
-    results_df.to_csv(summary_path, index=False)
+        # ── Save progress after EACH seizure ──────────────────────────────
+        # This is the key change — we write the CSV after every seizure
+        # so a Colab disconnect only loses the current in-progress seizure
+        new_records.extend(seizure_records)
+        all_records  = existing_records + new_records
+        progress_df  = pd.DataFrame(all_records)
+        progress_df.to_csv(progress_path, index=False)
+
+        n_done = len(completed) + len([
+            r for r in new_records
+            if r['seizure_id'] not in completed
+            and r['seizure_id'] == sz_id
+        ])
+        print(f"  ✓ Progress saved — "
+              f"{sz_id} complete "
+              f"({len(completed) + 1}/{len(seizure_ids)} seizures done)\n")
+        completed.add(sz_id)
+
+    # ── Final summary ──────────────────────────────────────────────────────
+    final_df = pd.DataFrame(existing_records + new_records)
+    final_df.to_csv(progress_path, index=False)
 
     print("=" * 60)
     print(f"Connectivity computation complete!")
-    print(f"Matrices saved → {subject_result_dir}")
-    print(f"Summary   saved → {summary_path}")
-    print(f"Total matrices  : {len(records)}")
+    print(f"Matrices saved  → {subject_result_dir}")
+    print(f"Summary saved   → {progress_path}")
+    print(f"Total matrices  : {len(final_df)}")
 
-    return results_df
-
+    return final_df
 
 # ══════════════════════════════════════════════════════════════════════════
 # QUICK SANITY CHECK
