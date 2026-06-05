@@ -134,7 +134,14 @@ def compute_coherence_matrix(epochs: np.ndarray, sfreq: float, fmin: float, fmax
         axis=-1,
     )
 
-    coh = np.abs(pxy) ** 2 / (pxx[:, :, None, :] * pxx[:, None, :, :] + EPS)
+    num = np.abs(pxy) ** 2
+    denom = pxx[:, :, None, :] * pxx[:, None, :, :]
+    coh = np.divide(
+        num,
+        denom,
+        out=np.zeros_like(num, dtype=float),
+        where=denom > 0,
+    )
     band_mask = (freqs >= fmin) & (freqs <= fmax)
     conn_matrix = coh[..., band_mask].mean(axis=(0, -1))
 
