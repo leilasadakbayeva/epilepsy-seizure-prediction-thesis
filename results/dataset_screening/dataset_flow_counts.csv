@@ -1,0 +1,10 @@
+count_type,exclusion_reason,count
+total_screened_subjects,not_applicable,1
+subjects_with_annotations,not_applicable,1
+subjects_with_readable_metadata,not_applicable,1
+subjects_with_compatible_channel_sampling_metadata,not_applicable,1
+subjects_with_at_least_one_usable_seizure,not_applicable,1
+total_annotated_seizures,not_applicable,7
+usable_seizures,not_applicable,6
+excluded_seizures,not_applicable,1
+excluded_seizures_by_exclusion_reason,less_than_540_sec_preictal_available,1
