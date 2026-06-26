@@ -1,0 +1,145 @@
+metric,method,band,n_subjects_complete,model_type,test_name,statistic,df1,df2,p_uncorrected,p_fdr_bh,effect_size,skip_reason,fallback_reason
+assortativity,aec,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.701357185847036,3.0,,,,0.1051056240459781,,mixed model failed: Singular matrix
+assortativity,aec,alpha2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.664467815595288,3.0,,,,0.10381932852611875,,mixed model failed: Singular matrix
+assortativity,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.4257085104308342,3.0,,0.4888669341492876,0.9346311268387354,,,
+assortativity,aec,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.26744650391183367,3.0,,,,0.011494450148058546,,mixed model failed: Singular matrix
+assortativity,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.8950089253101592,3.0,,0.8266321003363027,0.996861179388722,,,
+assortativity,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.7438218549960116,3.0,,0.8628513449159756,0.996861179388722,,,
+assortativity,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.638336929081403,3.0,,0.30325850003678106,0.8754429249632198,,,
+assortativity,coherence,alpha2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.5992955298894906,3.0,,,,0.025394636425924575,,mixed model failed: Singular matrix
+assortativity,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.6661599678112218,3.0,,0.6444832268527816,0.9553560541765119,,,
+assortativity,coherence,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.749963800276447,3.0,,0.43180313599122433,0.9346311268387354,,,
+assortativity,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.9918433658789023,3.0,,0.5741013693650319,0.9346311268387354,,,
+assortativity,coherence,theta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.20113510606583346,3.0,,,,0.008669192483312922,,mixed model failed: Singular matrix
+assortativity,wpli,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.29026095005841657,3.0,,,,0.012462760751407061,,mixed model failed: Singular matrix
+assortativity,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.6492395556622859,3.0,,0.6482773224769187,0.9553560541765119,,,
+assortativity,wpli,beta1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.2803181735163034,3.0,,,,0.05273070000016752,,mixed model failed: Singular matrix
+assortativity,wpli,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.5649085339678606,3.0,,,,0.06370504216630551,,mixed model failed: Singular matrix
+assortativity,wpli,delta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.36837784902069326,3.0,,,,0.015763946107030743,,mixed model failed: Singular matrix
+assortativity,wpli,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.2102395722583763,3.0,,0.7505495014894742,0.996861179388722,,,
+characteristic_path_length,aec,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.26100548667444723,3.0,,,,0.011220731056702156,,mixed model failed: Singular matrix
+characteristic_path_length,aec,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.798023717879209,3.0,,0.4238253516194753,0.9346311268387354,,,
+characteristic_path_length,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,10.326812559413163,3.0,,0.015982946635929703,0.26334133545858984,,,
+characteristic_path_length,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.476967788296445,3.0,,0.21435393175819115,0.8574157270327646,,,
+characteristic_path_length,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.45126112933947116,3.0,,0.9294609629941615,0.996861179388722,,,
+characteristic_path_length,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,5.313739641243386,3.0,,0.1502133270717552,0.8011377443826944,,,
+characteristic_path_length,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.778821192311931,3.0,,0.4269982029134616,0.9346311268387354,,,
+characteristic_path_length,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.4349406951116826,3.0,,0.932933641549389,0.996861179388722,,,
+characteristic_path_length,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,6.9213174512983615,3.0,,0.07444838920174911,0.6238959104265877,,,
+characteristic_path_length,coherence,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.6759069840528535,3.0,,,,0.06791673291425242,,mixed model failed: Singular matrix
+characteristic_path_length,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,7.668013240185856,3.0,,0.05339504743015066,0.49835377601473946,,,
+characteristic_path_length,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,9.763805394657444,3.0,,0.020684355702399276,0.26334133545858984,,,
+characteristic_path_length,wpli,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.235683348200616,3.0,,0.7444593024296577,0.996861179388722,,,
+characteristic_path_length,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.12457326543214052,3.0,,0.9887336430002316,0.996861179388722,,,
+characteristic_path_length,wpli,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.215627368559479,3.0,,0.528876829917281,0.9346311268387354,,,
+characteristic_path_length,wpli,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.9082372071774867,3.0,,0.5916690784147018,0.9346311268387354,,,
+characteristic_path_length,wpli,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.174977943582131,3.0,,0.5368937374176879,0.9346311268387354,,,
+characteristic_path_length,wpli,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,10.552928101217416,3.0,,0.014406120385782128,0.26334133545858984,,,
+clustering_coefficient,aec,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,6.148134785550038,3.0,,0.10462140539387203,0.680163046486138,,,
+clustering_coefficient,aec,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.008199444667248,3.0,,0.5707066244297352,0.9346311268387354,,,
+clustering_coefficient,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.7489776841039442,3.0,,0.6261003869345132,0.9476113964414254,,,
+clustering_coefficient,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.6695945376028236,3.0,,0.2994231841383011,0.8754429249632198,,,
+clustering_coefficient,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.5293675590363305,3.0,,0.6755090872691036,0.9576837692929063,,,
+clustering_coefficient,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.9855077799738773,3.0,,0.8047585880588961,0.996861179388722,,,
+clustering_coefficient,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.6852647231370297,3.0,,0.8766642402589206,0.996861179388722,,,
+clustering_coefficient,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.38181411315181,3.0,,0.7098030863485103,0.981456119395471,,,
+clustering_coefficient,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.2672914245749406,3.0,,0.9660579264891352,0.996861179388722,,,
+clustering_coefficient,coherence,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.7495406255616013,3.0,,0.28981020976626587,0.8754429249632198,,,
+clustering_coefficient,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,5.073651461967154,3.0,,0.16648278494266058,0.8301257564718311,,,
+clustering_coefficient,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.5529544071940644,3.0,,0.31395877740321443,0.8754429249632198,,,
+clustering_coefficient,wpli,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.0806192050236367,3.0,,,,0.08295725029814614,,mixed model failed: Singular matrix
+clustering_coefficient,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.669308631982483,3.0,,0.29945806779889533,0.8754429249632198,,,
+clustering_coefficient,wpli,beta1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.873387440084085,3.0,,,,0.11105571107525405,,mixed model failed: Singular matrix
+clustering_coefficient,wpli,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.7801158601684948,3.0,,,,0.032805385169513944,,mixed model failed: Singular matrix
+clustering_coefficient,wpli,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.2459733646882536,3.0,,0.3552332075966137,0.8868612121862072,,,
+clustering_coefficient,wpli,theta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.9002891111199889,3.0,,,,0.037668544800201396,,mixed model failed: Singular matrix
+global_efficiency,aec,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.332669387745586,3.0,,0.5062912262594106,0.9346311268387354,,,
+global_efficiency,aec,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.1142129383622645,3.0,,0.24939237443558362,0.8754429249632198,,,
+global_efficiency,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.4294068592230342,3.0,,0.6986563080194788,0.9781188312272702,,,
+global_efficiency,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.549465024417068,3.0,,0.31440311336824434,0.8754429249632198,,,
+global_efficiency,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.9043743056104498,3.0,,0.5924893750495555,0.9346311268387354,,,
+global_efficiency,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.928257439958893,3.0,,0.17712649813418666,0.8301257564718311,,,
+global_efficiency,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.4780830094602546,3.0,,0.4792649989153066,0.9346311268387354,,,
+global_efficiency,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.003788269544894,3.0,,0.39104146831888204,0.9318434989726552,,,
+global_efficiency,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.6332630723952715,3.0,,0.2007071092782231,0.8574157270327646,,,
+global_efficiency,coherence,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,5.811694008871759,3.0,,0.1211399068476994,0.7140878719443333,,,
+global_efficiency,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,24.037221558596485,3.0,,2.4536972105124154e-05,0.0027481408757739053,,,
+global_efficiency,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,6.816364364459427,3.0,,0.07798698880332346,0.6238959104265877,,,
+global_efficiency,wpli,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.598597332840919,3.0,,0.30819771955090614,0.8754429249632198,,,
+global_efficiency,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.9050128288323631,3.0,,0.5923537311189084,0.9346311268387354,,,
+global_efficiency,wpli,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.914034609183339,3.0,,0.5904394006212159,0.9346311268387354,,,
+global_efficiency,wpli,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.918223582240434,3.0,,0.17788409067253522,0.8301257564718311,,,
+global_efficiency,wpli,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.11043651196198576,3.0,,0.9905562449748782,0.996861179388722,,,
+global_efficiency,wpli,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.5555257691933275,3.0,,0.3136316979601371,0.8754429249632198,,,
+mean_betweenness_centrality,aec,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.31944329421781587,3.0,,,,0.013698581487878982,,mixed model failed: Singular matrix
+mean_betweenness_centrality,aec,alpha2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.3658530655158658,3.0,,,,0.05605603308217062,,mixed model failed: Singular matrix
+mean_betweenness_centrality,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.502217424258828,3.0,,0.3204746421740358,0.8754429249632198,,,
+mean_betweenness_centrality,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.0424482269494062,3.0,,0.790982238819642,0.996861179388722,,,
+mean_betweenness_centrality,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.2157012880047133,3.0,,0.9750156364294186,0.996861179388722,,,
+mean_betweenness_centrality,aec,theta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.3241145941217005,3.0,,,,0.09177476217317308,,mixed model failed: Singular matrix
+mean_betweenness_centrality,coherence,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.1403757476298728,3.0,,,,0.04723935366838008,,mixed model failed: Singular matrix
+mean_betweenness_centrality,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.3089790900038317,3.0,,0.9583310046555837,0.996861179388722,,,
+mean_betweenness_centrality,coherence,beta1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.628443643969548,3.0,,,,0.10255962790733213,,mixed model failed: Singular matrix
+mean_betweenness_centrality,coherence,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.8006376353919,3.0,,,,0.07260448952418422,,mixed model failed: Singular matrix
+mean_betweenness_centrality,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,11.307484775587724,3.0,,0.010174249307230555,0.26334133545858984,,,
+mean_betweenness_centrality,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,9.656038698917847,3.0,,0.021728020130353794,0.26334133545858984,,,
+mean_betweenness_centrality,wpli,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.3961387752754343,3.0,,,,0.0169318014002407,,mixed model failed: Singular matrix
+mean_betweenness_centrality,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.43858538419212256,3.0,,0.9321612258856179,0.996861179388722,,,
+mean_betweenness_centrality,wpli,beta1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.7732531880000568,3.0,,,,0.0715793430335183,,mixed model failed: Singular matrix
+mean_betweenness_centrality,wpli,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,2.2026883599408267,3.0,,,,0.08739894444919441,,mixed model failed: Singular matrix
+mean_betweenness_centrality,wpli,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.238262734034911,3.0,,0.35632816561052966,0.8868612121862072,,,
+mean_betweenness_centrality,wpli,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.4309367676030234,3.0,,0.3298304727491895,0.8795479273311719,,,
+mean_connectivity,aec,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.18042568041926998,3.0,,0.9806856333871047,0.996861179388722,,,
+mean_connectivity,aec,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.5646492845325337,3.0,,0.6674316497237145,0.9576837692929063,,,
+mean_connectivity,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.4356964836398425,3.0,,0.4870243259433753,0.9346311268387354,,,
+mean_connectivity,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.54344802190875,3.0,,0.20844740976167037,0.8574157270327646,,,
+mean_connectivity,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.5927472868265102,3.0,,0.8980906907845768,0.996861179388722,,,
+mean_connectivity,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.6484107083998155,3.0,,0.8852657933064111,0.996861179388722,,,
+mean_connectivity,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.052381115651846236,3.0,,0.996861179388722,0.996861179388722,,,
+mean_connectivity,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.1301604988346714,3.0,,0.7697986568659352,0.996861179388722,,,
+mean_connectivity,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.1126584773573955,3.0,,0.54935611524994,0.9346311268387354,,,
+mean_connectivity,coherence,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.7590575924685337,3.0,,0.28868447123980967,0.8754429249632198,,,
+mean_connectivity,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.23634857832046952,3.0,,0.9715184586865409,0.996861179388722,,,
+mean_connectivity,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.0214983459738667,3.0,,0.7960501847703156,0.996861179388722,,,
+mean_connectivity,wpli,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.914314975584311,3.0,,0.4050256631930288,0.9346311268387354,,,
+mean_connectivity,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.8759776026537864,3.0,,0.8312207520770013,0.996861179388722,,,
+mean_connectivity,wpli,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.729542569462958,3.0,,0.4352301676239124,0.9346311268387354,,,
+mean_connectivity,wpli,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,11.749959185022362,3.0,,0.008290670713120181,0.26334133545858984,,,
+mean_connectivity,wpli,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.08104027020715712,3.0,,0.9940112525132131,0.996861179388722,,,
+mean_connectivity,wpli,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.538086642698121,3.0,,0.4684472789762161,0.9346311268387354,,,
+modularity,aec,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.7850721583980795,3.0,,0.6181887768972996,0.9476113964414254,,,
+modularity,aec,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.9610191268768864,3.0,,0.5805366211108447,0.9346311268387354,,,
+modularity,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.374855797831949,3.0,,0.49833236987677487,0.9346311268387354,,,
+modularity,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,6.118633459227959,3.0,,0.10597895840827376,0.680163046486138,,,
+modularity,aec,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.46764154157290144,3.0,,0.925940690831803,0.996861179388722,,,
+modularity,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.313800848796874,3.0,,0.3457264379147983,0.8868612121862072,,,
+modularity,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.4687648442189333,3.0,,0.9256980549886707,0.996861179388722,,,
+modularity,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.534736408064379,3.0,,0.6742767004301023,0.9576837692929063,,,
+modularity,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.564910353253164,3.0,,0.4636744494481263,0.9346311268387354,,,
+modularity,coherence,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,9.483026312453282,3.0,,0.02351261923737409,0.26334133545858984,,,
+modularity,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.24779525366803107,3.0,,0.9695278680130409,0.996861179388722,,,
+modularity,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.087049323885805,3.0,,0.25221649836865495,0.8754429249632198,,,
+modularity,wpli,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.5681542175342854,3.0,,0.9036824362627519,0.996861179388722,,,
+modularity,wpli,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,3.149080572580897,3.0,,0.3692060974653827,0.8989365851331057,,,
+modularity,wpli,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,8.224326783248134,3.0,,0.04159606537077683,0.42352357468427315,,,
+modularity,wpli,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,6.199140669788073,3.0,,0.10231348850156584,0.680163046486138,,,
+modularity,wpli,delta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.44298566577281495,3.0,,,,0.018896298965006924,,mixed model failed: Singular matrix
+modularity,wpli,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.4450869357253694,3.0,,0.9307788932994194,0.996861179388722,,,
+small_worldness,aec,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.7978111285297282,3.0,,0.6154113745801608,0.9476113964414254,,,
+small_worldness,aec,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,6.0477109080743405,3.0,,0.10931191818527218,0.680163046486138,,,
+small_worldness,aec,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,2.4768808833506615,3.0,,0.4794837181491779,0.9346311268387354,,,
+small_worldness,aec,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,5.484794517796454,3.0,,0.1395509074642673,0.7814850817998968,,,
+small_worldness,aec,delta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.2193217279788449,3.0,,,,0.009445656102631384,,mixed model failed: Singular matrix
+small_worldness,aec,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.387315080785804,3.0,,0.22256445998583968,0.8595592937384153,,,
+small_worldness,coherence,alpha1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.963541729523971,3.0,,0.5800081324664734,0.9346311268387354,,,
+small_worldness,coherence,alpha2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,0.4801740998917697,3.0,,0.9232249800899759,0.996861179388722,,,
+small_worldness,coherence,beta1,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,1.112291888531385,3.0,,0.7741076321717295,0.996861179388722,,,
+small_worldness,coherence,beta2,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,4.7559785013949005,3.0,,0.190562821693242,0.8537214411857242,,,
+small_worldness,coherence,delta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,15.341004033276926,3.0,,0.0015472529211232808,0.08664616358290372,,,
+small_worldness,coherence,theta,24,linear_mixed_effects_subject_random_intercept,wald_chi_square_window_terms,9.84605622635404,3.0,,0.019921077252246372,0.26334133545858984,,,
+small_worldness,wpli,alpha1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.2037824725637727,3.0,,,,0.049735303724875314,,mixed model failed: Singular matrix
+small_worldness,wpli,alpha2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.24115638442781953,3.0,,,,0.010376264435335953,,mixed model failed: Singular matrix
+small_worldness,wpli,beta1,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.8426661133117224,3.0,,,,0.03534278043013189,,mixed model failed: Singular matrix
+small_worldness,wpli,beta2,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,0.3091632225772454,3.0,,,,0.013263591645271503,,mixed model failed: Singular matrix
+small_worldness,wpli,delta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.7948279169250851,3.0,,,,0.07238718989858066,,mixed model failed: Singular matrix
+small_worldness,wpli,theta,24,pingouin_repeated_measures_anova,one_way_rm_anova_window,1.9679346816268408,3.0,,,,0.07881848085236243,,mixed model failed: Singular matrix
