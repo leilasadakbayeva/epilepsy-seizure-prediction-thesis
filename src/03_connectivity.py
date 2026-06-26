@@ -1,18 +1,21 @@
 """
 03_connectivity.py
 ------------------
-Computes functional connectivity matrices from segmented EEG epochs.
+Compute multi-subject functional connectivity matrices from segmented EEG.
 
-Colab-ready version:
-- resumes from existing matrix files instead of trusting the CSV only
-- mirrors each saved matrix and the summary CSV to Google Drive immediately
-- avoids repeated filtering for wPLI/AEC by filtering each band once per window
-- uses vectorized coherence across channel pairs/epochs
+The script reads results/segmentation/segments_summary.csv, keeps only rows
+where status == "saved", and computes six frequency bands x three connectivity
+methods for each saved segment window.
+
+Run examples:
+    python src/03_connectivity.py --subject chb02
+    python src/03_connectivity.py --all
+    python src/03_connectivity.py --subject chb02 --overwrite
 """
 
-import os
-import shutil
-from itertools import combinations
+from __future__ import annotations
+
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -20,19 +23,20 @@ import pandas as pd
 from scipy import signal
 from scipy.signal import hilbert
 
-# ── Paths ──────────────────────────────────────────────────────────────────
+
+# Paths
 ROOT = Path(__file__).resolve().parent.parent
-DATA_PROC = ROOT / "data" / "processed"
-ANNOT_DIR = ROOT / "data" / "annotations"
-RESULTS_DIR = ROOT / "results" / "connectivity_matrices"
+SEGMENTS_DIR = ROOT / "data" / "segments"
+SEGMENTATION_SUMMARY = ROOT / "results" / "segmentation" / "segments_summary.csv"
+CONNECTIVITY_MATRIX_DIR = ROOT / "results" / "connectivity_matrices"
+CONNECTIVITY_DIR = ROOT / "results" / "connectivity"
+CONNECTIVITY_SUMMARY = CONNECTIVITY_DIR / "connectivity_summary.csv"
 
-# Canonical Google Drive project folder used by the Colab notebook.
-# Override with: export THESIS_DRIVE_ROOT=/content/drive/MyDrive/thesis
-DRIVE_ROOT = Path(os.environ.get("THESIS_DRIVE_ROOT", "/content/drive/MyDrive/thesis"))
 
-# ── Config ─────────────────────────────────────────────────────────────────
-SUBJECT = "chb01"
-SFREQ = 256.0  # Hz
+# Connectivity parameters
+SFREQ = 256.0
+EXPECTED_SEGMENT_SHAPE = (90, 22, 512)
+EPS = 1e-12
 
 FREQ_BANDS = {
     "delta": (2, 4),
@@ -43,78 +47,137 @@ FREQ_BANDS = {
     "beta2": (20, 30),
 }
 
-WINDOWS = ["Baseline", "T0", "T1", "T2"]
 METHODS = ["coherence", "wpli", "aec"]
-EPS = 1e-12
+
+SUMMARY_COLUMNS = [
+    "subject_id",
+    "seizure_id",
+    "window",
+    "band",
+    "method",
+    "mean_conn",
+    "std_conn",
+    "saved_as",
+    "status",
+    "error_message",
+]
+
+REQUIRED_SEGMENT_COLUMNS = {
+    "subject_id",
+    "seizure_id",
+    "window",
+    "output_file",
+    "status",
+}
 
 
-def drive_available() -> bool:
-    """Return True only when the canonical Drive thesis folder is mounted."""
-    return DRIVE_ROOT.exists() and (DRIVE_ROOT / "data").exists()
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Compute CHB-MIT connectivity matrices from saved segments."
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--subject",
+        help="Process one subject, for example: --subject chb02",
+    )
+    group.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all subjects with saved segment windows.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Regenerate matrices even when .npy outputs already exist.",
+    )
+    return parser.parse_args()
 
 
-def mirror_to_drive(local_path: Path) -> None:
-    """Copy a local repo file to the same relative path under Google Drive."""
-    if not drive_available():
-        return
-    local_path = Path(local_path)
-    try:
-        rel = local_path.resolve().relative_to(ROOT.resolve())
-    except ValueError:
-        return
-    drive_path = DRIVE_ROOT / rel
-    drive_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(local_path, drive_path)
+def load_segments_summary(path: Path = SEGMENTATION_SUMMARY) -> pd.DataFrame:
+    """Load segmentation summary and validate required columns."""
+    if not path.exists():
+        raise FileNotFoundError(f"Missing segmentation summary: {path}")
 
+    df = pd.read_csv(path)
+    missing = sorted(REQUIRED_SEGMENT_COLUMNS - set(df.columns))
+    if missing:
+        raise ValueError(f"{path} is missing required columns: {', '.join(missing)}")
 
-def restore_from_drive(local_dir: Path) -> None:
-    """Restore a local directory from Drive if the matching Drive directory exists."""
-    if not drive_available():
-        return
-    local_dir = Path(local_dir)
-    try:
-        rel = local_dir.resolve().relative_to(ROOT.resolve())
-    except ValueError:
-        return
-    drive_dir = DRIVE_ROOT / rel
-    if drive_dir.exists():
-        local_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(drive_dir, local_dir, dirs_exist_ok=True)
-        print(f"Restored from Drive: {drive_dir} → {local_dir}")
-
-
-def save_matrix(path: Path, matrix: np.ndarray) -> None:
-    """Save matrix locally, then mirror it to Drive immediately if available."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    np.save(path, matrix)
-    mirror_to_drive(path)
-
-
-def save_summary(records: list[dict], progress_path: Path) -> pd.DataFrame:
-    """Write a de-duplicated connectivity summary and mirror it to Drive."""
-    df = pd.DataFrame(records)
-    if not df.empty:
-        df = df.drop_duplicates(
-            subset=["subject", "seizure_id", "window", "band", "method"],
-            keep="last",
-        ).sort_values(["seizure_id", "window", "band", "method"])
-    progress_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(progress_path, index=False)
-    mirror_to_drive(progress_path)
+    df = df.copy()
+    df["subject_id"] = df["subject_id"].astype(str)
+    df["seizure_id"] = df["seizure_id"].astype(str)
+    df["window"] = df["window"].astype(str)
+    df["output_file"] = df["output_file"].astype(str)
+    df["status"] = df["status"].astype(str)
     return df
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Connectivity methods
-# ══════════════════════════════════════════════════════════════════════════
+def select_saved_segments(summary: pd.DataFrame, subject: str | None) -> pd.DataFrame:
+    """Select saved segment rows, optionally for one subject."""
+    selected = summary[summary["status"].str.lower() == "saved"].copy()
+    if subject is not None:
+        selected = selected[selected["subject_id"] == subject].copy()
+
+    return selected.sort_values(["subject_id", "seizure_id", "window"]).reset_index(
+        drop=True
+    )
+
+
+def segment_path_for_row(row: pd.Series) -> Path:
+    """Return canonical segment path for a segmentation summary row."""
+    return (
+        SEGMENTS_DIR
+        / str(row["subject_id"])
+        / f"{row['seizure_id']}_{row['window']}.npy"
+    )
+
+
+def matrix_filename(seizure_id: str, window: str, band: str, method: str) -> str:
+    """Return one connectivity matrix filename."""
+    return f"{seizure_id}_{window}_{band}_{method}.npy"
+
+
+def matrix_path(subject_id: str, seizure_id: str, window: str, band: str, method: str) -> Path:
+    """Return one connectivity matrix output path."""
+    return (
+        CONNECTIVITY_MATRIX_DIR
+        / subject_id
+        / matrix_filename(seizure_id, window, band, method)
+    )
+
+
+def expected_task_count(n_windows: int) -> int:
+    """Return expected matrix count for a number of segment windows."""
+    return n_windows * len(FREQ_BANDS) * len(METHODS)
+
+
+def load_segment(row: pd.Series) -> np.ndarray:
+    """Load one saved segment array from data/segments."""
+    canonical_path = segment_path_for_row(row)
+    if not canonical_path.exists():
+        raise FileNotFoundError(f"Missing segment file: {canonical_path}")
+
+    summary_path = Path(str(row["output_file"]))
+    if summary_path.name != canonical_path.name:
+        raise ValueError(
+            f"summary output_file does not match expected segment name: "
+            f"{summary_path.name} != {canonical_path.name}"
+        )
+
+    epochs = np.load(canonical_path)
+    if epochs.shape != EXPECTED_SEGMENT_SHAPE:
+        raise ValueError(f"expected segment shape {EXPECTED_SEGMENT_SHAPE}, got {epochs.shape}")
+    return epochs
+
 
 def compute_coherence_matrix(epochs: np.ndarray, sfreq: float, fmin: float, fmax: float) -> np.ndarray:
     """
-    Compute average magnitude squared coherence between all channel pairs.
+    Compute average magnitude-squared coherence between all channel pairs.
 
-    epochs shape: (n_epochs, n_channels, n_samples)
+    The CSD/Welch calls are vectorized across epochs and channel pairs.
     """
-    n_epochs, n_channels, n_samples = epochs.shape
+    _, _, n_samples = epochs.shape
     nperseg = min(256, n_samples)
     noverlap = min(128, nperseg // 2)
 
@@ -134,244 +197,301 @@ def compute_coherence_matrix(epochs: np.ndarray, sfreq: float, fmin: float, fmax
         axis=-1,
     )
 
-    num = np.abs(pxy) ** 2
-    denom = pxx[:, :, None, :] * pxx[:, None, :, :]
-    coh = np.divide(
-        num,
-        denom,
-        out=np.zeros_like(num, dtype=float),
-        where=denom > 0,
+    numerator = np.abs(pxy) ** 2
+    denominator = pxx[:, :, None, :] * pxx[:, None, :, :]
+    coherence = np.divide(
+        numerator,
+        denominator,
+        out=np.zeros_like(numerator, dtype=float),
+        where=denominator > 0,
     )
-    band_mask = (freqs >= fmin) & (freqs <= fmax)
-    conn_matrix = coh[..., band_mask].mean(axis=(0, -1))
 
-    conn_matrix = np.nan_to_num(conn_matrix, nan=0.0, posinf=0.0, neginf=0.0)
-    conn_matrix = np.clip(conn_matrix, 0.0, 1.0)
-    np.fill_diagonal(conn_matrix, 1.0)
-    return conn_matrix
+    band_mask = (freqs >= fmin) & (freqs <= fmax)
+    if not np.any(band_mask):
+        raise ValueError(f"no coherence frequencies found for band {fmin}-{fmax} Hz")
+
+    matrix = coherence[..., band_mask].mean(axis=(0, -1))
+    matrix = np.nan_to_num(matrix, nan=0.0, posinf=0.0, neginf=0.0)
+    matrix = np.clip(matrix, 0.0, 1.0)
+    np.fill_diagonal(matrix, 1.0)
+    return matrix
 
 
 def bandpass_epochs(epochs: np.ndarray, sfreq: float, fmin: float, fmax: float) -> np.ndarray:
-    """Bandpass-filter a 3D epoch array with a stable Butterworth IIR filter."""
-    nyq = sfreq / 2.0
-    low = max(fmin / nyq, 0.001)
-    high = min(fmax / nyq, 0.999)
+    """Bandpass-filter all epochs once for a frequency band."""
+    nyquist = sfreq / 2.0
+    low = max(fmin / nyquist, 0.001)
+    high = min(fmax / nyquist, 0.999)
     sos = signal.butter(4, [low, high], btype="band", output="sos")
     return signal.sosfiltfilt(sos, epochs, axis=-1)
 
 
 def compute_wpli_from_analytic(analytic: np.ndarray) -> np.ndarray:
-    """Compute wPLI from band-limited analytic signals."""
+    """Compute weighted phase lag index from band-limited analytic signals."""
     _, n_channels, _ = analytic.shape
-    conn_matrix = np.zeros((n_channels, n_channels), dtype=float)
+    cross = analytic[:, :, None, :] * np.conj(analytic[:, None, :, :])
+    imag_cross = np.imag(cross)
 
-    for i, j in combinations(range(n_channels), 2):
-        imag_cross = np.imag(analytic[:, i, :] * np.conj(analytic[:, j, :])).ravel()
-        numerator = abs(np.mean(imag_cross))
-        denominator = np.mean(np.abs(imag_cross))
-        val = numerator / denominator if denominator > EPS else 0.0
-        conn_matrix[i, j] = val
-        conn_matrix[j, i] = val
+    numerator = np.abs(np.mean(imag_cross, axis=(0, 3)))
+    denominator = np.mean(np.abs(imag_cross), axis=(0, 3))
+    matrix = np.divide(
+        numerator,
+        denominator,
+        out=np.zeros_like(numerator, dtype=float),
+        where=denominator > EPS,
+    )
 
-    np.fill_diagonal(conn_matrix, 1.0)
-    return conn_matrix
+    matrix = np.nan_to_num(matrix, nan=0.0, posinf=0.0, neginf=0.0)
+    matrix = np.clip(matrix, 0.0, 1.0)
+    np.fill_diagonal(matrix, 1.0)
+    return matrix
 
 
 def compute_aec_from_analytic(analytic: np.ndarray) -> np.ndarray:
-    """Compute AEC by averaging per-epoch envelope correlations."""
+    """Compute amplitude envelope correlation from band-limited analytic signals."""
     envelopes = np.abs(analytic)
-    epoch_corrs = []
+    epoch_corrs = np.array([np.corrcoef(envelopes[epoch]) for epoch in range(envelopes.shape[0])])
 
-    for ep in range(envelopes.shape[0]):
-        corr = np.corrcoef(envelopes[ep])
-        epoch_corrs.append(corr)
-
-    conn_matrix = np.nanmean(epoch_corrs, axis=0)
-    conn_matrix = np.nan_to_num(conn_matrix, nan=0.0, posinf=0.0, neginf=0.0)
-    conn_matrix = np.clip(conn_matrix, -1.0, 1.0)
-    np.fill_diagonal(conn_matrix, 1.0)
-    return conn_matrix
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Main computation loop
-# ══════════════════════════════════════════════════════════════════════════
-
-def matrix_filename(sz_id: str, window: str, band_name: str, method: str) -> str:
-    return f"{sz_id}_{window}_{band_name}_{method}.npy"
+    matrix = np.nanmean(epoch_corrs, axis=0)
+    matrix = np.nan_to_num(matrix, nan=0.0, posinf=0.0, neginf=0.0)
+    matrix = np.clip(matrix, -1.0, 1.0)
+    np.fill_diagonal(matrix, 1.0)
+    return matrix
 
 
 def matrix_stats(matrix: np.ndarray) -> tuple[float, float]:
+    """Return mean and standard deviation over off-diagonal connections."""
     upper = matrix[np.triu_indices_from(matrix, k=1)]
     return float(np.mean(upper)), float(np.std(upper))
 
+def validate_matrix(matrix: np.ndarray) -> None:
+    """Validate one connectivity matrix before recording it as usable."""
+    if matrix.shape != (22, 22):
+        raise ValueError(f"expected matrix shape (22, 22), got {matrix.shape}")
+    if not np.isfinite(matrix).all():
+        raise ValueError("matrix contains non-finite values")
+    if not np.allclose(matrix, matrix.T, atol=1e-8):
+        raise ValueError("matrix is not symmetric")
 
-def compute_all_connectivity(subject: str) -> pd.DataFrame:
-    """
-    Compute all missing connectivity matrices.
+def save_matrix(path: Path, matrix: np.ndarray) -> None:
+    """Save one connectivity matrix."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(path, matrix)
 
-    Resume rule: matrix files are the source of truth. The summary CSV is rebuilt
-    from actual matrix files, so partial seizures are not skipped accidentally.
-    """
-    subject_proc_dir = DATA_PROC / subject
-    subject_result_dir = RESULTS_DIR / subject
-    progress_path = ANNOT_DIR / f"{subject}_connectivity_summary.csv"
 
-    # Self-contained Colab recovery: restore existing outputs if the notebook has not already done it.
-    restore_from_drive(subject_proc_dir)
-    restore_from_drive(ANNOT_DIR)
-    restore_from_drive(subject_result_dir)
+def summary_record(
+    row: pd.Series,
+    band: str,
+    method: str,
+    output_path: Path,
+    status: str,
+    mean_conn=np.nan,
+    std_conn=np.nan,
+    error_message: str = "",
+) -> dict:
+    """Build one connectivity summary row."""
+    return {
+        "subject_id": row["subject_id"],
+        "seizure_id": row["seizure_id"],
+        "window": row["window"],
+        "band": band,
+        "method": method,
+        "mean_conn": mean_conn,
+        "std_conn": std_conn,
+        "saved_as": output_path.name,
+        "status": status,
+        "error_message": error_message,
+    }
 
-    subject_result_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_path = ANNOT_DIR / f"{subject}_segments_summary.csv"
-    if not summary_path.exists():
-        raise FileNotFoundError(
-            f"Missing {summary_path}. Run 02_segmentation.py first or restore annotations from Drive."
-        )
+def failed_records_for_segment(row: pd.Series, error_message: str) -> list[dict]:
+    """Build failed summary rows for all band/method tasks under one segment."""
+    records = []
+    for band in FREQ_BANDS:
+        for method in METHODS:
+            output_path = matrix_path(
+                str(row["subject_id"]),
+                str(row["seizure_id"]),
+                str(row["window"]),
+                band,
+                method,
+            )
+            records.append(
+                summary_record(
+                    row=row,
+                    band=band,
+                    method=method,
+                    output_path=output_path,
+                    status="failed",
+                    error_message=error_message,
+                )
+            )
+    return records
 
-    summary_df = pd.read_csv(summary_path)
-    seizure_ids = list(summary_df["seizure_id"].drop_duplicates())
 
-    expected_tasks = []
-    for sz_id in seizure_ids:
-        for window in WINDOWS:
-            npy_path = subject_proc_dir / f"{sz_id}_{window}.npy"
-            if not npy_path.exists():
-                print(f"[warning] Missing segment file: {npy_path.name}; skipping that window")
-                continue
-            for band_name, (fmin, fmax) in FREQ_BANDS.items():
-                for method in METHODS:
-                    expected_tasks.append((sz_id, window, band_name, fmin, fmax, method, npy_path))
+def existing_matrix_record(row: pd.Series, band: str, method: str, output_path: Path) -> dict:
+    """Build a summary row for an existing matrix skipped by overwrite policy."""
+    try:
+        matrix = np.load(output_path)
+        validate_matrix(matrix)
+        mean_conn, std_conn = matrix_stats(matrix)
+        status = "skipped_existing"
+        error_message = "output exists; pass --overwrite to regenerate"
+    except Exception as exc:
+        mean_conn = std_conn = np.nan
+        status = "failed_existing_read"
+        error_message = f"could not inspect existing matrix: {exc}"
 
-    n_existing = sum(
-        (subject_result_dir / matrix_filename(sz, win, band, method)).exists()
-        for sz, win, band, _, _, method, _ in expected_tasks
+    return summary_record(
+        row=row,
+        band=band,
+        method=method,
+        output_path=output_path,
+        status=status,
+        mean_conn=mean_conn,
+        std_conn=std_conn,
+        error_message=error_message,
     )
 
-    print(f"\nComputing connectivity for {subject}")
-    print(f"  Drive mirror : {'ON' if drive_available() else 'OFF'} → {DRIVE_ROOT}")
-    print(f"  Expected     : {len(expected_tasks)} matrices")
-    print(f"  Existing     : {n_existing} matrices")
-    print(f"  Remaining    : {len(expected_tasks) - n_existing} matrices\n")
 
+def compute_segment_connectivity(row: pd.Series, overwrite: bool) -> list[dict]:
+    """Compute all band/method matrices for one saved segment window."""
     records = []
-    current_window_key = None
-    epochs = None
-    analytic_by_band = {}
+    subject_id = str(row["subject_id"])
+    seizure_id = str(row["seizure_id"])
+    window = str(row["window"])
 
-    for task_idx, (sz_id, window, band_name, fmin, fmax, method, npy_path) in enumerate(expected_tasks, start=1):
-        fname = matrix_filename(sz_id, window, band_name, method)
-        save_path = subject_result_dir / fname
+    try:
+        epochs = load_segment(row)
+        print(f"\n{subject_id} {seizure_id} {window}: loaded {epochs.shape}")
+    except Exception as exc:
+        message = str(exc)
+        print(f"\n{subject_id} {seizure_id} {window}: [fail] {message}")
+        return failed_records_for_segment(row, message)
 
-        # Load a window only once, then reuse it for all bands/methods.
-        window_key = (sz_id, window)
-        if window_key != current_window_key:
-            current_window_key = window_key
-            analytic_by_band = {}
-            epochs = np.load(npy_path)
-            print(f"── {sz_id} {window}: loaded {epochs.shape}")
+    analytic_by_band: dict[str, np.ndarray] = {}
 
-        if save_path.exists():
-            matrix = np.load(save_path)
-            status = "loaded"
-        else:
-            if method == "coherence":
-                matrix = compute_coherence_matrix(epochs, SFREQ, fmin, fmax)
-            else:
-                if band_name not in analytic_by_band:
-                    filtered = bandpass_epochs(epochs, SFREQ, fmin, fmax)
-                    analytic_by_band[band_name] = hilbert(filtered, axis=-1)
-                analytic = analytic_by_band[band_name]
+    for band, (fmin, fmax) in FREQ_BANDS.items():
+        for method in METHODS:
+            output_path = matrix_path(subject_id, seizure_id, window, band, method)
 
-                if method == "wpli":
-                    matrix = compute_wpli_from_analytic(analytic)
-                elif method == "aec":
-                    matrix = compute_aec_from_analytic(analytic)
+            if output_path.exists() and not overwrite:
+                print(f"  [skip] {band:6s} {method:9s} {output_path.name}")
+                records.append(existing_matrix_record(row, band, method, output_path))
+                continue
+
+            try:
+                if method == "coherence":
+                    matrix = compute_coherence_matrix(epochs, SFREQ, fmin, fmax)
                 else:
-                    raise ValueError(f"Unknown method: {method}")
+                    if band not in analytic_by_band:
+                        filtered = bandpass_epochs(epochs, SFREQ, fmin, fmax)
+                        analytic_by_band[band] = hilbert(filtered, axis=-1)
+                    analytic = analytic_by_band[band]
 
-            save_matrix(save_path, matrix)
-            status = "computed"
+                    if method == "wpli":
+                        matrix = compute_wpli_from_analytic(analytic)
+                    elif method == "aec":
+                        matrix = compute_aec_from_analytic(analytic)
+                    else:
+                        raise ValueError(f"Unknown connectivity method: {method}")
 
-        mean_conn, std_conn = matrix_stats(matrix)
-        records.append(
-            {
-                "subject": subject,
-                "seizure_id": sz_id,
-                "window": window,
-                "band": band_name,
-                "method": method,
-                "mean_conn": mean_conn,
-                "std_conn": std_conn,
-                "saved_as": fname,
-            }
-        )
+                validate_matrix(matrix)
+                save_matrix(output_path, matrix)
+                mean_conn, std_conn = matrix_stats(matrix)
+                print(
+                    f"  [ok]   {band:6s} {method:9s} "
+                    f"mean={mean_conn:.4f} std={std_conn:.4f}"
+                )
+                records.append(
+                    summary_record(
+                        row=row,
+                        band=band,
+                        method=method,
+                        output_path=output_path,
+                        status="computed",
+                        mean_conn=mean_conn,
+                        std_conn=std_conn,
+                    )
+                )
+            except Exception as exc:
+                print(f"  [fail] {band:6s} {method:9s} {exc}")
+                records.append(
+                    summary_record(
+                        row=row,
+                        band=band,
+                        method=method,
+                        output_path=output_path,
+                        status="failed",
+                        error_message=str(exc),
+                    )
+                )
 
-        # Save a resumable summary after every matrix. It is small and protects Colab progress.
-        save_summary(records, progress_path)
-        print(
-            f"  [{task_idx:03d}/{len(expected_tasks)}] {status:8s} "
-            f"{window:8s} {band_name:6s} {method:9s} mean={mean_conn:.4f}"
-        )
+    return records
 
-    final_df = save_summary(records, progress_path)
 
+def save_summary(records: list[dict]) -> pd.DataFrame:
+    """Write the connectivity summary CSV."""
+    CONNECTIVITY_DIR.mkdir(parents=True, exist_ok=True)
+    summary = pd.DataFrame(records, columns=SUMMARY_COLUMNS)
+    summary = summary.sort_values(
+        ["subject_id", "seizure_id", "window", "band", "method"]
+    ).reset_index(drop=True)
+    summary.to_csv(CONNECTIVITY_SUMMARY, index=False)
+    return summary
+
+
+def print_run_summary(summary: pd.DataFrame, expected: int) -> None:
+    """Print the required run summary."""
+    computed = int((summary["status"] == "computed").sum())
+    skipped = int(summary["status"].astype(str).str.startswith("skipped").sum())
+    failed = int(summary["status"].astype(str).str.startswith("failed").sum())
+
+    print("\n" + "=" * 60)
+    print("Connectivity complete")
     print("=" * 60)
-    print("Connectivity computation complete!")
-    print(f"Matrices saved  → {subject_result_dir}")
-    print(f"Summary saved   → {progress_path}")
-    print(f"Total rows      : {len(final_df)}")
-    print(f"Expected rows   : {len(expected_tasks)}")
-
-    if len(final_df) != len(expected_tasks):
-        print("[warning] Summary row count does not match expected task count.")
-
-    return final_df
+    print(f"Expected matrices: {expected}")
+    print(f"Computed:          {computed}")
+    print(f"Skipped:           {skipped}")
+    print(f"Failed:            {failed}")
+    print(f"Summary saved:     {CONNECTIVITY_SUMMARY}")
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Sanity check
-# ══════════════════════════════════════════════════════════════════════════
+def main() -> None:
+    """Run multi-subject connectivity from saved segmented windows."""
+    args = parse_args()
+    segment_summary = load_segments_summary()
+    subject = args.subject if args.subject else None
+    segments = select_saved_segments(segment_summary, subject)
 
-def sanity_check(subject: str) -> None:
-    subject_result_dir = RESULTS_DIR / subject
-    files = sorted(subject_result_dir.glob("*.npy"))
-
-    if not files:
-        print("Sanity check file not found — skipping")
+    if segments.empty:
+        if subject:
+            print(f"No saved segment windows found for {subject} in {SEGMENTATION_SUMMARY}.")
+        else:
+            print(f"No saved segment windows found in {SEGMENTATION_SUMMARY}.")
         return
 
-    test_file = files[0]
-    matrix = np.load(test_file)
-    upper = matrix[np.triu_indices_from(matrix, k=1)]
+    expected = expected_task_count(len(segments))
 
-    print(f"\n── Sanity Check: {test_file.name} ──")
-    print(f"  Shape          : {matrix.shape}")
-    print(f"  Symmetric      : {'YES' if np.allclose(matrix, matrix.T) else 'NO'}")
-    print(f"  Diagonal mean  : {np.mean(np.diag(matrix)):.4f}")
-    print(f"  Off-diag mean  : {np.mean(upper):.4f}")
-    print(f"  Off-diag min   : {np.min(upper):.4f}")
-    print(f"  Off-diag max   : {np.max(upper):.4f}")
-    print(f"  Finite values  : {'YES' if np.isfinite(matrix).all() else 'NO'}")
+    print("=" * 60)
+    print("CHB-MIT Multi-Subject Connectivity")
+    print("=" * 60)
+    print(f"Segmentation summary : {SEGMENTATION_SUMMARY}")
+    print(f"Subjects             : {', '.join(sorted(segments['subject_id'].unique()))}")
+    print(f"Saved windows        : {len(segments)}")
+    print(f"Bands                : {len(FREQ_BANDS)}")
+    print(f"Methods              : {len(METHODS)}")
+    print(f"Expected matrices    : {expected}")
+    print(f"Overwrite            : {'YES' if args.overwrite else 'NO'}")
+    print(f"Output directory     : {CONNECTIVITY_MATRIX_DIR}")
+
+    records = []
+    for _, row in segments.iterrows():
+        records.extend(compute_segment_connectivity(row, overwrite=args.overwrite))
+
+    summary = save_summary(records)
+    print_run_summary(summary, expected)
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print(f"  Connectivity Pipeline — Subject: {SUBJECT}")
-    print("=" * 60)
-
-    results_df = compute_all_connectivity(SUBJECT)
-    sanity_check(SUBJECT)
-
-    if not results_df.empty:
-        print("\n── Preview of results ──")
-        print(
-            results_df.groupby(["window", "band", "method"])["mean_conn"]
-            .mean()
-            .unstack("method")
-            .round(4)
-            .to_string()
-        )
-
-    print("\nNext step: run 04_graph_metrics.py")
+    main()
