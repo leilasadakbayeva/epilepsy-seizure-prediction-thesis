@@ -1,292 +1,429 @@
 """
 01_preprocessing.py
 -------------------
-Downloads CHB-MIT chb01 data from PhysioNet, parses seizure annotations,
-loads EEG recordings with MNE, and applies preprocessing pipeline.
+Preprocess CHB-MIT EDF recordings selected by dataset screening.
 
-This is the foundation script — run this first before anything else.
+This script reads results/dataset_screening/seizure_eligibility.csv, selects
+recordings linked to usable seizures, enforces the common 22-channel bipolar
+montage, filters the EEG, and saves reusable MNE FIF files under:
+
+    data/processed/<subject_id>/<recording_stem>_preprocessed_raw.fif
+
+Run examples:
+    python src/01_preprocessing.py --subject chb02
+    python src/01_preprocessing.py --all
+    python src/01_preprocessing.py --subject chb01 --overwrite
 """
 
-import os
-import re
-import urllib.request
+import argparse
+from pathlib import Path
+
 import mne
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
-# ── Paths ──────────────────────────────────────────────────────────────────
-ROOT        = Path(__file__).parent.parent          # D:\epilepsy-thesis
-DATA_RAW    = ROOT / "data" / "raw"
-DATA_PROC   = ROOT / "data" / "processed"
-ANNOT_DIR   = ROOT / "data" / "annotations"
 
-for folder in [DATA_RAW, DATA_PROC, ANNOT_DIR]:
-    folder.mkdir(parents=True, exist_ok=True)
+# Paths
+ROOT = Path(__file__).resolve().parent.parent
+DATA_RAW = ROOT / "data" / "raw"
+DATA_PROC = ROOT / "data" / "processed"
+SCREENING_PATH = ROOT / "results" / "dataset_screening" / "seizure_eligibility.csv"
+PREPROCESSING_DIR = ROOT / "results" / "preprocessing"
+PREPROCESSING_LOG = PREPROCESSING_DIR / "preprocessing_log.csv"
 
-# ── Config ─────────────────────────────────────────────────────────────────
-SUBJECT         = "chb01"
-PHYSIONET_BASE  = "https://physionet.org/files/chbmit/1.0.0"
-SFREQ           = 256       # Hz
-L_FREQ          = 0.5       # bandpass low  (Hz)
-H_FREQ          = 47.0      # bandpass high (Hz)
-NOTCH_FREQ      = 60.0      # US power line (Hz)
-EPOCH_LENGTH    = 2.0       # seconds
 
-# Standard 23 channels in CHB-MIT (10-20 system)
-STANDARD_CHANNELS = [
-    'FP1-F7', 'F7-T7',  'T7-P7',  'P7-O1',
-    'FP1-F3', 'F3-C3',  'C3-P3',  'P3-O1',
-    'FP2-F4', 'F4-C4',  'C4-P4',  'P4-O2',
-    'FP2-F8', 'F8-T8',  'T8-P8',  'P8-O2',
-    'FZ-CZ',  'CZ-PZ',
-    'P7-T7',  'T7-FT9', 'FT9-FT10', 'FT10-T8', 'T8-P8'
+# Preprocessing parameters
+EXPECTED_SFREQ = 256.0
+SFREQ_TOLERANCE = 1e-6
+L_FREQ = 0.5
+H_FREQ = 47.0
+NOTCH_FREQ = 60.0
+
+
+# Required 22-channel bipolar montage used by the thesis pipeline.
+REQUIRED_CHANNELS = [
+    "FP1-F7",
+    "F7-T7",
+    "T7-P7",
+    "P7-O1",
+    "FP1-F3",
+    "F3-C3",
+    "C3-P3",
+    "P3-O1",
+    "FP2-F4",
+    "F4-C4",
+    "C4-P4",
+    "P4-O2",
+    "FP2-F8",
+    "F8-T8",
+    "T8-P8",
+    "P8-O2",
+    "FZ-CZ",
+    "CZ-PZ",
+    "P7-T7",
+    "T7-FT9",
+    "FT9-FT10",
+    "FT10-T8",
+]
+
+CHANNELS_TO_DROP = {"T8-P8-1"}
+NORMALIZED_CHANNELS_TO_DROP = {
+    str(channel).strip().upper() for channel in CHANNELS_TO_DROP
+}
+
+LOG_COLUMNS = [
+    "subject_id",
+    "recording_file",
+    "output_file",
+    "sampling_frequency",
+    "n_channels",
+    "status",
+    "error_message",
 ]
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 1 — Download summary file and EDF files
-# ══════════════════════════════════════════════════════════════════════════
-
-def download_file(url: str, dest_path: Path) -> None:
-    """Download a single file from PhysioNet if not already present."""
-    if dest_path.exists():
-        print(f"  [skip] already exists: {dest_path.name}")
-        return
-    print(f"  [download] {dest_path.name} ...")
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        urllib.request.urlretrieve(url, dest_path)
-        print(f"  [ok] {dest_path.name}")
-    except Exception as e:
-        print(f"  [error] Could not download {dest_path.name}: {e}")
-
-def download_subject(subject: str) -> None:
-    """Download summary file + only EDF files that contain seizures."""
-    subject_dir = DATA_RAW / subject
-    subject_dir.mkdir(exist_ok=True)
-    base_url    = f"{PHYSIONET_BASE}/{subject}"
-
-    # Download summary file first
-    summary_url  = f"{base_url}/{subject}-summary.txt"
-    summary_path = subject_dir / f"{subject}-summary.txt"
-    download_file(summary_url, summary_path)
-
-    # Parse summary to find only seizure-containing files
-    seizure_files = parse_seizure_filenames(summary_path)
-    print(f"\nFound {len(seizure_files)} EDF files containing seizures")
-    print("Files to download:")
-    for f in seizure_files:
-        print(f"  → {f}")
-
-    # Download only those files
-    for edf_name in seizure_files:
-        edf_url  = f"{base_url}/{edf_name}"
-        edf_path = subject_dir / edf_name
-        download_file(edf_url, edf_path)
-
-def parse_seizure_filenames(summary_path: Path) -> list:
-    """
-    Extract only EDF filenames that contain at least one seizure.
-    Much smaller download than grabbing all 42 files.
-    """
-    seizure_files = []
-    current_file  = None
-
-    with open(summary_path, 'r') as f:
-        lines = f.readlines()
-
-    for i, line in enumerate(lines):
-        line = line.strip()
-
-        if line.startswith("File Name:"):
-            current_file = line.split(":")[-1].strip()
-
-        elif "Number of Seizures in File:" in line:
-            n_seizures = int(line.split(":")[-1].strip())
-            if n_seizures > 0 and current_file:
-                seizure_files.append(current_file)
-
-    return seizure_files
-
-def parse_edf_filenames(summary_path: Path) -> list:
-    """Extract EDF filenames mentioned in the summary file."""
-    edf_files = []
-    with open(summary_path, 'r') as f:
-        for line in f:
-            if line.strip().startswith("File Name:"):
-                fname = line.strip().split(":")[-1].strip()
-                edf_files.append(fname)
-    return edf_files
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Preprocess screened CHB-MIT EDF recordings."
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--subject",
+        help="Process one subject, for example: --subject chb02",
+    )
+    group.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all subjects with usable seizures in the screening table.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Regenerate FIF files even when outputs already exist.",
+    )
+    return parser.parse_args()
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 2 — Parse seizure annotations
-# ══════════════════════════════════════════════════════════════════════════
+def load_eligibility_table(path: Path = SCREENING_PATH) -> pd.DataFrame:
+    """Load and validate the dataset-screening seizure eligibility table."""
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing {path}. Run src/00_dataset_screening.py first."
+        )
 
-def parse_annotations(subject: str) -> pd.DataFrame:
-    """
-    Parse the summary .txt file and extract all seizure events.
+    df = pd.read_csv(path)
+    required = {"subject_id", "recording_file", "usable_for_analysis"}
+    missing = sorted(required - set(df.columns))
+    if missing:
+        raise ValueError(
+            f"{path} is missing required columns: {', '.join(missing)}"
+        )
 
-    Returns a DataFrame with columns:
-        file        — EDF filename
-        start_sec   — seizure start in seconds from file start
-        end_sec     — seizure end in seconds from file start
-        duration    — seizure duration in seconds
-    """
-    summary_path = DATA_RAW / subject / f"{subject}-summary.txt"
-    records      = []
-    current_file = None
-
-    with open(summary_path, 'r') as f:
-        lines = f.readlines()
-
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-
-        # Track which file we're in
-        if line.startswith("File Name:"):
-            current_file = line.split(":")[-1].strip()
-
-        # Find number of seizures in this file
-        elif "Number of Seizures in File:" in line:
-            n_seizures = int(line.split(":")[-1].strip())
-
-            # Read the next n_seizures pairs of start/end lines
-            j = i + 1
-            seizure_count = 0
-            while seizure_count < n_seizures and j < len(lines):
-                l = lines[j].strip()
-                if "Seizure" in l and "Start Time:" in l:
-                    start = int(re.search(r'(\d+)', l).group(1))
-                    end_line = lines[j+1].strip()
-                    end   = int(re.search(r'(\d+)', end_line).group(1))
-                    records.append({
-                        "file"      : current_file,
-                        "start_sec" : start,
-                        "end_sec"   : end,
-                        "duration"  : end - start
-                    })
-                    seizure_count += 1
-                    j += 2
-                else:
-                    j += 1
-        i += 1
-
-    df = pd.DataFrame(records)
-
-    # Save to annotations folder
-    out_path = ANNOT_DIR / f"{subject}_seizures.csv"
-    df.to_csv(out_path, index=False)
-    print(f"\nSeizure annotations saved → {out_path}")
-    print(df.to_string(index=False))
+    df["usable_for_analysis"] = df["usable_for_analysis"].apply(parse_bool)
     return df
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 3 — Load and preprocess one EDF file
-# ══════════════════════════════════════════════════════════════════════════
+def parse_bool(value) -> bool:
+    """Parse booleans stored as bools, strings, or numeric flags."""
+    if isinstance(value, bool):
+        return value
+    if pd.isna(value):
+        return False
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return bool(value)
+    return str(value).strip().lower() in {"true", "1", "yes", "y"}
 
-def preprocess_edf(edf_path: Path) -> mne.io.Raw:
+
+def select_recordings_to_process(
+    eligibility_df: pd.DataFrame, subject: str | None
+) -> pd.DataFrame:
     """
-    Load one EDF file and apply preprocessing pipeline:
-        1. Load raw EEG
-        2. Select EEG channels only
-        3. Bandpass filter  0.5 – 47 Hz
-        4. Notch filter at 60 Hz
-    Returns the cleaned MNE Raw object.
+    Select unique subject/recording pairs linked to usable seizures.
+
+    The screening row remains the source of truth for subject_id and
+    recording_file, while duplicate seizure rows for the same recording are
+    collapsed.
     """
-    print(f"\n[load] {edf_path.name}")
+    selected = eligibility_df[eligibility_df["usable_for_analysis"]].copy()
+    if subject is not None:
+        selected = selected[selected["subject_id"] == subject].copy()
 
-    # Load — preload=True loads all data into memory
-    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+    recordings = (
+        selected[["subject_id", "recording_file"]]
+        .drop_duplicates()
+        .sort_values(["subject_id", "recording_file"])
+        .reset_index(drop=True)
+    )
+    return recordings
 
-    print(f"  Channels ({len(raw.ch_names)}): {raw.ch_names}")
-    print(f"  Duration: {raw.times[-1]:.1f} s  "
-          f"({raw.times[-1]/60:.1f} min)")
-    print(f"  Sampling rate: {raw.info['sfreq']} Hz")
 
-    # Drop non-EEG channels (ECG, VNS, misc)
-    eeg_channels = [ch for ch in raw.ch_names
-                    if not any(x in ch.upper()
-                               for x in ['ECG', 'VNS', 'EKG', '-'])]
-    # Keep only channels that exist in this file
-    available = [ch for ch in raw.ch_names if ch in raw.ch_names]
-    raw.pick_channels(available)
+def normalize_channel_name(channel_name: str) -> str:
+    """
+    Normalize MNE channel names to the canonical montage spelling.
 
-    # Bandpass filter
-    print(f"  Applying bandpass filter {L_FREQ}–{H_FREQ} Hz ...")
-    raw.filter(l_freq=L_FREQ, h_freq=H_FREQ,
-               method='fir', verbose=False)
+    MNE renames duplicated channels by appending running numbers. The first
+    duplicate can appear as T8-P8-0 and should be treated as canonical T8-P8.
+    The second duplicate T8-P8-1 is intentionally dropped before renaming.
+    """
+    normalized = str(channel_name).strip().upper()
+    if normalized.endswith("-0"):
+        return normalized[:-2]
+    return normalized
 
-    # Notch filter
-    print(f"  Applying notch filter at {NOTCH_FREQ} Hz ...")
-    raw.notch_filter(freqs=NOTCH_FREQ, verbose=False)
 
-    print(f"  [ok] preprocessing complete")
+def normalize_for_drop(channel_name: str) -> str:
+    """Normalize only for matching explicit duplicate channels to drop."""
+    return str(channel_name).strip().upper()
+
+
+def prepare_channels(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
+    """
+    Drop duplicate channels, canonicalize names, and enforce channel order.
+
+    Raises:
+        ValueError if any required channel is missing after normalization.
+    """
+    drop_channels = [
+        channel
+        for channel in raw.ch_names
+        if normalize_for_drop(channel) in NORMALIZED_CHANNELS_TO_DROP
+    ]
+    if drop_channels:
+        raw.drop_channels(drop_channels)
+
+    rename_map = {}
+    for channel in raw.ch_names:
+        canonical = normalize_channel_name(channel)
+        if canonical != channel:
+            rename_map[channel] = canonical
+    if rename_map:
+        raw.rename_channels(rename_map)
+
+    available = set(raw.ch_names)
+    missing = [channel for channel in REQUIRED_CHANNELS if channel not in available]
+    if missing:
+        raise ValueError(
+            "Missing required channels after normalization: "
+            + ", ".join(missing)
+        )
+
+    raw.pick_channels(REQUIRED_CHANNELS, ordered=True)
     return raw
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 4 — Quick inspection & sanity check
-# ══════════════════════════════════════════════════════════════════════════
-
-def inspect_raw(raw: mne.io.Raw, seizure_df: pd.DataFrame,
-                edf_name: str) -> None:
-    """Print a summary and show basic signal statistics."""
-
-    # Which seizures are in this file?
-    file_seizures = seizure_df[seizure_df['file'] == edf_name]
-
-    print(f"\n── Inspection: {edf_name} ──")
-    print(f"  Channels     : {len(raw.ch_names)}")
-    print(f"  Duration     : {raw.times[-1]:.1f} s")
-    print(f"  Seizures     : {len(file_seizures)}")
-
-    if not file_seizures.empty:
-        for _, row in file_seizures.iterrows():
-            print(f"    → seizure at {row.start_sec}s "
-                  f"– {row.end_sec}s "
-                  f"(duration: {row.duration}s)")
-
-    # Signal amplitude statistics
-    data = raw.get_data()   # shape: (n_channels, n_samples)
-    print(f"\n  Signal statistics (µV):")
-    print(f"    Mean amplitude : {np.mean(np.abs(data)) * 1e6:.2f}")
-    print(f"    Max amplitude  : {np.max(np.abs(data))  * 1e6:.2f}")
-    print(f"    Std            : {np.std(data)           * 1e6:.2f}")
+def output_path_for_recording(subject_id: str, recording_file: str) -> Path:
+    """Return the FIF output path for one subject recording."""
+    recording_stem = Path(recording_file).stem
+    return (
+        DATA_PROC
+        / subject_id
+        / f"{recording_stem}_preprocessed_raw.fif"
+    )
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# MAIN
-# ══════════════════════════════════════════════════════════════════════════
+def preprocess_recording(edf_path: Path) -> mne.io.BaseRaw:
+    """Load one EDF, enforce channels, verify sfreq, and apply filters."""
+    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
 
-if __name__ == "__main__":
+    # Some CHB-MIT EDF headers contain acquisition dates that are outside
+    # the FIFF date range accepted by MNE when saving. The thesis uses
+    # seizure annotations in seconds from file start, so the absolute
+    # calendar date is not needed.
+    raw.set_meas_date(None)
+
+    raw = prepare_channels(raw)
+
+    sfreq = float(raw.info["sfreq"])
+    if abs(sfreq - EXPECTED_SFREQ) > SFREQ_TOLERANCE:
+        raise ValueError(
+            f"Sampling frequency mismatch: expected {EXPECTED_SFREQ} Hz, got {sfreq} Hz"
+        )
+
+    raw.filter(l_freq=L_FREQ, h_freq=H_FREQ, method="fir", verbose=False)
+    raw.notch_filter(freqs=NOTCH_FREQ, verbose=False)
+    return raw
+
+
+def save_preprocessed_raw(raw: mne.io.BaseRaw, output_path: Path, overwrite: bool) -> None:
+    """Save one preprocessed Raw object as FIF."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    raw.save(output_path, overwrite=overwrite, verbose=False)
+
+
+def load_existing_log() -> pd.DataFrame:
+    """Load an existing preprocessing log, or return an empty log frame."""
+    if not PREPROCESSING_LOG.exists():
+        return pd.DataFrame(columns=LOG_COLUMNS)
+    try:
+        log_df = pd.read_csv(PREPROCESSING_LOG)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame(columns=LOG_COLUMNS)
+
+    for column in LOG_COLUMNS:
+        if column not in log_df.columns:
+            log_df[column] = np.nan
+    return log_df[LOG_COLUMNS]
+
+
+def save_log(records: list[dict]) -> pd.DataFrame:
+    """Create or update the preprocessing log."""
+    PREPROCESSING_DIR.mkdir(parents=True, exist_ok=True)
+    existing = load_existing_log()
+    new = pd.DataFrame(records, columns=LOG_COLUMNS)
+    combined = pd.concat([existing, new], ignore_index=True)
+    combined = combined.drop_duplicates(
+        subset=["subject_id", "recording_file"], keep="last"
+    )
+    combined = combined.sort_values(["subject_id", "recording_file"]).reset_index(
+        drop=True
+    )
+    combined.to_csv(PREPROCESSING_LOG, index=False)
+    return combined
+
+
+def log_record(
+    subject_id: str,
+    recording_file: str,
+    output_file: Path,
+    sampling_frequency,
+    n_channels,
+    status: str,
+    error_message: str = "",
+) -> dict:
+    """Build one preprocessing log record."""
+    return {
+        "subject_id": subject_id,
+        "recording_file": recording_file,
+        "output_file": str(output_file),
+        "sampling_frequency": sampling_frequency,
+        "n_channels": n_channels,
+        "status": status,
+        "error_message": error_message,
+    }
+
+
+def process_recordings(recordings: pd.DataFrame, overwrite: bool) -> list[dict]:
+    """Preprocess all selected subject recordings."""
+    records = []
+
+    for idx, row in recordings.iterrows():
+        subject_id = str(row["subject_id"])
+        recording_file = str(row["recording_file"])
+        edf_path = DATA_RAW / subject_id / recording_file
+        output_path = output_path_for_recording(subject_id, recording_file)
+
+        print(
+            f"\n[{idx + 1:03d}/{len(recordings):03d}] "
+            f"{subject_id} {recording_file}"
+        )
+
+        if output_path.exists() and not overwrite:
+            print(f"  [skip] existing output: {output_path.name}")
+            records.append(
+                log_record(
+                    subject_id,
+                    recording_file,
+                    output_path,
+                    sampling_frequency=np.nan,
+                    n_channels=np.nan,
+                    status="skipped_existing",
+                    error_message="output exists; pass --overwrite to regenerate",
+                )
+            )
+            continue
+
+        if not edf_path.exists():
+            message = f"Missing EDF file: {edf_path}"
+            print(f"  [skip] {message}")
+            records.append(
+                log_record(
+                    subject_id,
+                    recording_file,
+                    output_path,
+                    sampling_frequency=np.nan,
+                    n_channels=np.nan,
+                    status="skipped_missing_edf",
+                    error_message=message,
+                )
+            )
+            continue
+
+        try:
+            raw = preprocess_recording(edf_path)
+            save_preprocessed_raw(raw, output_path, overwrite=overwrite)
+            sfreq = float(raw.info["sfreq"])
+            n_channels = len(raw.ch_names)
+            print(f"  [ok] saved {output_path}")
+            print(f"       sfreq={sfreq}, channels={n_channels}")
+            records.append(
+                log_record(
+                    subject_id,
+                    recording_file,
+                    output_path,
+                    sampling_frequency=sfreq,
+                    n_channels=n_channels,
+                    status="processed",
+                )
+            )
+        except Exception as exc:
+            print(f"  [error] {exc}")
+            records.append(
+                log_record(
+                    subject_id,
+                    recording_file,
+                    output_path,
+                    sampling_frequency=np.nan,
+                    n_channels=np.nan,
+                    status="failed",
+                    error_message=str(exc),
+                )
+            )
+
+    return records
+
+
+def main() -> None:
+    """Run multi-subject preprocessing from the screening eligibility table."""
+    args = parse_args()
+    eligibility = load_eligibility_table()
+    subject = args.subject if args.subject else None
+    recordings = select_recordings_to_process(eligibility, subject)
+
+    if recordings.empty:
+        if subject:
+            print(f"No usable recordings found for {subject} in {SCREENING_PATH}.")
+        else:
+            print(f"No usable recordings found in {SCREENING_PATH}.")
+        return
 
     print("=" * 60)
-    print(f"  CHB-MIT Preprocessing Pipeline — Subject: {SUBJECT}")
+    print("CHB-MIT Multi-Subject Preprocessing")
     print("=" * 60)
+    print(f"Screening table : {SCREENING_PATH}")
+    print(f"Subjects        : {', '.join(sorted(recordings['subject_id'].unique()))}")
+    print(f"Recordings      : {len(recordings)}")
+    print(f"Overwrite       : {'YES' if args.overwrite else 'NO'}")
+    print(f"Bandpass        : {L_FREQ}-{H_FREQ} Hz")
+    print(f"Notch           : {NOTCH_FREQ} Hz")
+    print(f"Required chans  : {len(REQUIRED_CHANNELS)}")
 
-    # 1. Download data
-    print("\n[STEP 1] Downloading data from PhysioNet ...")
-    download_subject(SUBJECT)
+    records = process_recordings(recordings, overwrite=args.overwrite)
+    log_df = save_log(records)
 
-    # 2. Parse seizure annotations
-    print("\n[STEP 2] Parsing seizure annotations ...")
-    seizure_df = parse_annotations(SUBJECT)
-
-    # 3. Preprocess first EDF file as a test
-    #    chb01_03.edf is a good first file — it contains a seizure
-    test_edf = DATA_RAW / SUBJECT / "chb01_03.edf"
-    print("\n[STEP 3] Preprocessing test file (chb01_03.edf) ...")
-    raw = preprocess_edf(test_edf)
-
-    # 4. Inspect
-    print("\n[STEP 4] Inspecting ...")
-    inspect_raw(raw, seizure_df, "chb01_03.edf")
+    processed = sum(record["status"] == "processed" for record in records)
+    skipped = sum(record["status"].startswith("skipped") for record in records)
+    failed = sum(record["status"] == "failed" for record in records)
 
     print("\n" + "=" * 60)
-    print("  Pipeline test complete!")
-    print("  Next step: run 02_segmentation.py")
+    print("Preprocessing complete")
     print("=" * 60)
+    print(f"Processed this run : {processed}")
+    print(f"Skipped this run   : {skipped}")
+    print(f"Failed this run    : {failed}")
+    print(f"Log saved          : {PREPROCESSING_LOG}")
+    print(f"Total log rows     : {len(log_df)}")
+
+
+if __name__ == "__main__":
+    main()
