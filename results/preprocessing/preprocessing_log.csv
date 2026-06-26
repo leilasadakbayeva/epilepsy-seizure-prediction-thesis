@@ -5,8 +5,8 @@ chb01,chb01_15.edf,D:\epilepsy-thesis\data\processed\chb01\chb01_15_preprocessed
 chb01,chb01_16.edf,D:\epilepsy-thesis\data\processed\chb01\chb01_16_preprocessed_raw.fif,256.0,22.0,processed,
 chb01,chb01_18.edf,D:\epilepsy-thesis\data\processed\chb01\chb01_18_preprocessed_raw.fif,256.0,22.0,processed,
 chb01,chb01_26.edf,D:\epilepsy-thesis\data\processed\chb01\chb01_26_preprocessed_raw.fif,256.0,22.0,processed,
-chb02,chb02_16+.edf,D:\epilepsy-thesis\data\processed\chb02\chb02_16+_preprocessed_raw.fif,,,skipped_existing,output exists; pass --overwrite to regenerate
-chb02,chb02_19.edf,D:\epilepsy-thesis\data\processed\chb02\chb02_19_preprocessed_raw.fif,,,skipped_existing,output exists; pass --overwrite to regenerate
+chb02,chb02_16+.edf,D:\epilepsy-thesis\data\processed\chb02\chb02_16+_preprocessed_raw.fif,256.0,22.0,processed,
+chb02,chb02_19.edf,D:\epilepsy-thesis\data\processed\chb02\chb02_19_preprocessed_raw.fif,256.0,22.0,processed,
 chb03,chb03_02.edf,D:\epilepsy-thesis\data\processed\chb03\chb03_02_preprocessed_raw.fif,,,skipped_existing,output exists; pass --overwrite to regenerate
 chb03,chb03_04.edf,D:\epilepsy-thesis\data\processed\chb03\chb03_04_preprocessed_raw.fif,,,skipped_existing,output exists; pass --overwrite to regenerate
 chb03,chb03_34.edf,D:\epilepsy-thesis\data\processed\chb03\chb03_34_preprocessed_raw.fif,,,skipped_existing,output exists; pass --overwrite to regenerate

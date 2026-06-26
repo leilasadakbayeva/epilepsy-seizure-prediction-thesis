@@ -1,313 +1,542 @@
 """
 02_segmentation.py
 ------------------
-Extracts four time windows relative to each seizure onset:
+Create multi-subject seizure-aligned EEG segments from preprocessed FIF files.
 
-    Baseline : interictal segment, far from any seizure
-    T0       : 9–6 minutes before seizure onset
-    T1       : 6–3 minutes before seizure onset
-    T2       : 3–0 minutes before seizure onset
+The script reads results/dataset_screening/seizure_eligibility.csv, keeps only
+usable seizures for processing, and extracts four 3-minute windows per seizure:
 
-For each seizure, all four segments are saved as numpy arrays
-in data/processed/chb01/
+    Baseline : same-recording interictal data at least 600 seconds from seizures
+    T0       : 9-6 minutes before seizure onset
+    T1       : 6-3 minutes before seizure onset
+    T2       : 3-0 minutes before seizure onset
 
-Run after 01_preprocessing.py
+Each 3-minute window is split into non-overlapping 2-second epochs and saved as
+an array with shape:
+
+    90 x 22 x 512
+
+Run examples:
+    python src/02_segmentation.py --subject chb02
+    python src/02_segmentation.py --all
+    python src/02_segmentation.py --subject chb02 --overwrite
 """
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
 
 import mne
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
-# ── Paths ──────────────────────────────────────────────────────────────────
-ROOT      = Path(__file__).parent.parent
-DATA_RAW  = ROOT / "data" / "raw"
+
+# Paths
+ROOT = Path(__file__).resolve().parent.parent
 DATA_PROC = ROOT / "data" / "processed"
-ANNOT_DIR = ROOT / "data" / "annotations"
-
-# ── Config ─────────────────────────────────────────────────────────────────
-SUBJECT       = "chb01"
-L_FREQ        = 0.5
-H_FREQ        = 47.0
-NOTCH_FREQ    = 60.0
-WINDOW_SEC    = 180        # 3 minutes per window
-PRE_ICTAL_SEC = 540        # 9 minutes total pre-ictal period
-EPOCH_SEC     = 2          # each window split into 2s epochs
-BASELINE_BUFFER = 600      # baseline must be ≥10 min from any seizure
-
-# ── Channel handling ───────────────────────────────────────────────────────
-# CHB-MIT has a duplicate T8-P8 channel — we keep the first one
-CHANNELS_TO_DROP = ['T8-P8-1']   # MNE renames duplicate to T8-P8-1
+SEGMENTS_DIR = ROOT / "data" / "segments"
+SCREENING_PATH = ROOT / "results" / "dataset_screening" / "seizure_eligibility.csv"
+SEGMENTATION_DIR = ROOT / "results" / "segmentation"
+SUMMARY_PATH = SEGMENTATION_DIR / "segments_summary.csv"
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 1 — Load and preprocess one EDF file
-# ══════════════════════════════════════════════════════════════════════════
+# Segmentation parameters
+WINDOW_SEC = 180
+EPOCH_SEC = 2
+BASELINE_BUFFER_SEC = 600
+EXPECTED_SFREQ = 256
+EXPECTED_N_EPOCHS = 90
+EXPECTED_N_CHANNELS = 22
+EXPECTED_N_SAMPLES = 512
+EXPECTED_SHAPE = (EXPECTED_N_EPOCHS, EXPECTED_N_CHANNELS, EXPECTED_N_SAMPLES)
 
-def load_and_preprocess(edf_path: Path) -> mne.io.Raw:
-    """Load EDF, drop duplicate channels, apply filters."""
-    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+WINDOW_OFFSETS = {
+    "Baseline": None,
+    "T0": (-9 * 60, -6 * 60),
+    "T1": (-6 * 60, -3 * 60),
+    "T2": (-3 * 60, 0),
+}
 
-    # Drop duplicate channel
-    existing_drops = [ch for ch in CHANNELS_TO_DROP
-                      if ch in raw.ch_names]
-    if existing_drops:
-        raw.drop_channels(existing_drops)
+SUMMARY_COLUMNS = [
+    "subject_id",
+    "seizure_id",
+    "recording_file",
+    "seizure_start_sec",
+    "seizure_end_sec",
+    "window",
+    "window_start_sec",
+    "window_end_sec",
+    "baseline_source_recording_file",
+    "n_epochs",
+    "n_channels",
+    "n_samples",
+    "output_file",
+    "status",
+    "error_message",
+]
 
-    # Filters
-    raw.filter(l_freq=L_FREQ, h_freq=H_FREQ,
-               method='fir', verbose=False)
-    raw.notch_filter(freqs=NOTCH_FREQ, verbose=False)
+REQUIRED_COLUMNS = {
+    "subject_id",
+    "seizure_id",
+    "recording_file",
+    "seizure_start_sec",
+    "seizure_end_sec",
+    "usable_for_analysis",
+}
 
-    return raw
+
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Create multi-subject CHB-MIT seizure segments from FIF files."
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--subject",
+        help="Process one subject, for example: --subject chb02",
+    )
+    group.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all subjects with usable seizures in the screening table.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Regenerate .npy segment files even when outputs already exist.",
+    )
+    return parser.parse_args()
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 2 — Extract one time window from a Raw object
-# ══════════════════════════════════════════════════════════════════════════
+def as_bool(series: pd.Series) -> pd.Series:
+    """Convert common CSV boolean representations to a boolean mask."""
+    if pd.api.types.is_bool_dtype(series):
+        return series.fillna(False)
+    return series.astype(str).str.strip().str.lower().isin({"true", "1", "yes", "y"})
 
-def extract_window(raw: mne.io.Raw,
-                   start_sec: float,
-                   end_sec: float) -> np.ndarray:
-    """
-    Extract a segment from a Raw object between start_sec and end_sec.
 
-    Returns array of shape (n_channels, n_samples)
-    Returns None if the window is outside the file duration.
-    """
-    file_duration = raw.times[-1]
+def load_eligibility_table(path: Path = SCREENING_PATH) -> pd.DataFrame:
+    """Load the seizure eligibility table and validate required columns."""
+    if not path.exists():
+        raise FileNotFoundError(f"Missing screening table: {path}")
 
-    if start_sec < 0 or end_sec > file_duration:
-        return None
+    df = pd.read_csv(path)
+    missing = sorted(REQUIRED_COLUMNS - set(df.columns))
+    if missing:
+        raise ValueError(f"{path} is missing required columns: {', '.join(missing)}")
 
-    start_idx = int(start_sec * raw.info['sfreq'])
-    end_idx   = int(end_sec   * raw.info['sfreq'])
+    df = df.copy()
+    df["usable_for_analysis"] = as_bool(df["usable_for_analysis"])
+    df["subject_id"] = df["subject_id"].astype(str)
+    df["seizure_id"] = df["seizure_id"].astype(str)
+    df["recording_file"] = df["recording_file"].astype(str)
+    df["seizure_start_sec"] = pd.to_numeric(df["seizure_start_sec"])
+    df["seizure_end_sec"] = pd.to_numeric(df["seizure_end_sec"])
+    return df
 
-    data = raw.get_data()[:, start_idx:end_idx]
+
+def select_seizures_to_process(
+    eligibility_df: pd.DataFrame, subject: str | None
+) -> pd.DataFrame:
+    """Select usable seizure rows, optionally for one subject."""
+    selected = eligibility_df[eligibility_df["usable_for_analysis"]].copy()
+    if subject is not None:
+        selected = selected[selected["subject_id"] == subject].copy()
+
+    return selected.sort_values(["subject_id", "seizure_id"]).reset_index(drop=True)
+
+
+def preprocessed_path_for_recording(subject_id: str, recording_file: str) -> Path:
+    """Return the preprocessed FIF path for one subject recording."""
+    recording_stem = Path(recording_file).stem
+    return (
+        DATA_PROC
+        / subject_id
+        / f"{recording_stem}_preprocessed_raw.fif"
+    )
+
+
+def output_path_for_segment(subject_id: str, seizure_id: str, window: str) -> Path:
+    """Return the .npy output path for one seizure window."""
+    return SEGMENTS_DIR / subject_id / f"{seizure_id}_{window}.npy"
+
+
+def load_preprocessed_raw(subject_id: str, recording_file: str) -> mne.io.BaseRaw:
+    """Load a preprocessed FIF file without reading raw EDF or filtering again."""
+    fif_path = preprocessed_path_for_recording(subject_id, recording_file)
+    if not fif_path.exists():
+        raise FileNotFoundError(f"Missing preprocessed FIF: {fif_path}")
+    return mne.io.read_raw_fif(fif_path, preload=False, verbose=False)
+
+
+def recording_duration_sec(raw: mne.io.BaseRaw) -> float:
+    """Return the exclusive-end duration of a Raw object in seconds."""
+    return float(raw.n_times) / float(raw.info["sfreq"])
+
+
+def extract_window(raw: mne.io.BaseRaw, start_sec: float, end_sec: float) -> np.ndarray:
+    """Extract a (n_channels, n_samples) data window from a Raw object."""
+    sfreq = float(raw.info["sfreq"])
+    expected_samples = int(round((end_sec - start_sec) * sfreq))
+    duration_sec = recording_duration_sec(raw)
+
+    if start_sec < 0:
+        raise ValueError(f"window starts before recording: {start_sec:.3f}s")
+    if end_sec > duration_sec:
+        raise ValueError(
+            f"window ends after recording: {end_sec:.3f}s > {duration_sec:.3f}s"
+        )
+
+    start_sample = int(round(start_sec * sfreq))
+    stop_sample = start_sample + expected_samples
+    data = raw.get_data(start=start_sample, stop=stop_sample)
+
+    if data.shape[1] != expected_samples:
+        raise ValueError(
+            f"expected {expected_samples} samples, extracted {data.shape[1]}"
+        )
     return data
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 3 — Split a window into 2-second epochs
-# ══════════════════════════════════════════════════════════════════════════
+def split_into_epochs(window_data: np.ndarray, sfreq: float) -> np.ndarray:
+    """Split one 3-minute window into non-overlapping 2-second epochs."""
+    epoch_samples = int(round(EPOCH_SEC * sfreq))
+    n_channels, n_samples = window_data.shape
 
-def split_into_epochs(window: np.ndarray,
-                      sfreq: float,
-                      epoch_sec: float = EPOCH_SEC) -> np.ndarray:
-    """
-    Split a (n_channels, n_samples) window into non-overlapping epochs.
+    if n_samples % epoch_samples != 0:
+        raise ValueError(
+            f"{n_samples} samples cannot be split into {epoch_samples}-sample epochs"
+        )
 
-    Returns array of shape (n_epochs, n_channels, epoch_samples)
-    """
-    epoch_samples = int(epoch_sec * sfreq)
-    n_channels, n_samples = window.shape
     n_epochs = n_samples // epoch_samples
-
-    # Trim any leftover samples that don't fill a complete epoch
-    trimmed = window[:, :n_epochs * epoch_samples]
-
-    # Reshape → (n_epochs, n_channels, epoch_samples)
-    epochs = trimmed.reshape(n_channels,
-                             n_epochs,
-                             epoch_samples).transpose(1, 0, 2)
+    epochs = window_data.reshape(n_channels, n_epochs, epoch_samples).transpose(1, 0, 2)
     return epochs
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 4 — Find a valid baseline segment
-# ══════════════════════════════════════════════════════════════════════════
-
-def find_baseline(raw: mne.io.Raw,
-                  all_seizures_in_file: pd.DataFrame,
-                  window_sec: int = WINDOW_SEC,
-                  buffer_sec: int = BASELINE_BUFFER) -> np.ndarray:
+def seizure_intervals_for_recording(
+    eligibility_df: pd.DataFrame, subject_id: str, recording_file: str
+) -> list[tuple[float, float]]:
     """
-    Find a clean interictal baseline segment in this file.
+    Return all known seizure intervals for a subject recording.
 
-    Rules:
-    - Must be at least buffer_sec (10 min) away from any seizure
-    - Must be window_sec (3 min) long
-    - We try the beginning of the file first, then the end
-
-    Returns (n_channels, n_samples) array or None if no valid segment found.
+    Baseline exclusion uses all rows in the screening table, not only usable rows,
+    because unusable seizures are still ictal periods.
     """
-    file_duration = raw.times[-1]
-    sfreq         = raw.info['sfreq']
+    rows = eligibility_df[
+        (eligibility_df["subject_id"] == subject_id)
+        & (eligibility_df["recording_file"] == recording_file)
+    ]
+    return [
+        (float(row["seizure_start_sec"]), float(row["seizure_end_sec"]))
+        for _, row in rows.iterrows()
+    ]
 
-    # Collect all "forbidden zones" — seizure ± buffer
+
+def find_baseline_window(
+    raw: mne.io.BaseRaw,
+    seizure_intervals: list[tuple[float, float]],
+    window_sec: int = WINDOW_SEC,
+    buffer_sec: int = BASELINE_BUFFER_SEC,
+) -> tuple[float, float]:
+    """Find the earliest same-recording baseline window outside seizure buffers."""
+    duration_sec = recording_duration_sec(raw)
+    if duration_sec < window_sec:
+        raise ValueError(
+            f"recording is too short for baseline: {duration_sec:.3f}s < {window_sec}s"
+        )
+
     forbidden = []
-    for _, row in all_seizures_in_file.iterrows():
-        forbidden.append((
-            max(0, row['start_sec'] - buffer_sec),
-            min(file_duration, row['end_sec'] + buffer_sec)
-        ))
+    for seizure_start, seizure_end in seizure_intervals:
+        forbidden.append(
+            (
+                max(0.0, seizure_start - buffer_sec),
+                min(duration_sec, seizure_end + buffer_sec),
+            )
+        )
+    forbidden = sorted(forbidden)
 
-    def is_valid(start, end):
-        """Check if [start, end] overlaps with any forbidden zone."""
-        for (f_start, f_end) in forbidden:
-            if start < f_end and end > f_start:
-                return False
-        return True
+    merged = []
+    for start, end in forbidden:
+        if not merged or start > merged[-1][1]:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
 
-    # Try beginning of file
-    candidate_start = 0
-    candidate_end   = window_sec
-    if candidate_end <= file_duration and is_valid(candidate_start,
-                                                    candidate_end):
-        return extract_window(raw, candidate_start, candidate_end)
+    candidate_start = 0.0
+    for forbidden_start, forbidden_end in merged:
+        candidate_end = candidate_start + window_sec
+        if candidate_end <= forbidden_start:
+            return candidate_start, candidate_end
+        candidate_start = max(candidate_start, forbidden_end)
 
-    # Try end of file
-    candidate_start = file_duration - window_sec
-    candidate_end   = file_duration
-    if candidate_start >= 0 and is_valid(candidate_start, candidate_end):
-        return extract_window(raw, candidate_start, candidate_end)
+    candidate_end = candidate_start + window_sec
+    if candidate_end <= duration_sec:
+        return candidate_start, candidate_end
 
-    # Try middle of file
-    candidate_start = (file_duration / 2) - (window_sec / 2)
-    candidate_end   = candidate_start + window_sec
-    if is_valid(candidate_start, candidate_end):
-        return extract_window(raw, candidate_start, candidate_end)
-
-    # No valid baseline found in this file
-    return None
+    raise ValueError(
+        f"no {window_sec}s baseline at least {buffer_sec}s from seizures"
+    )
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# STEP 5 — Process all seizures for a subject
-# ══════════════════════════════════════════════════════════════════════════
+def window_bounds(
+    window: str,
+    seizure_start_sec: float,
+    raw: mne.io.BaseRaw,
+    seizure_intervals: list[tuple[float, float]],
+) -> tuple[float, float]:
+    """Return start/end seconds for one named window."""
+    if window == "Baseline":
+        return find_baseline_window(raw, seizure_intervals)
 
-def process_subject(subject: str) -> pd.DataFrame:
-    """
-    For each seizure, extract Baseline/T0/T1/T2 windows,
-    split into epochs, and save to disk.
+    start_offset, end_offset = WINDOW_OFFSETS[window]
+    return seizure_start_sec + start_offset, seizure_start_sec + end_offset
 
-    Returns a summary DataFrame of what was successfully extracted.
-    """
-    subject_raw_dir  = DATA_RAW  / subject
-    subject_proc_dir = DATA_PROC / subject
-    subject_proc_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load seizure annotations
-    annot_path = ANNOT_DIR / f"{subject}_seizures.csv"
-    seizure_df = pd.read_csv(annot_path)
+def validate_epochs(epochs: np.ndarray) -> None:
+    """Ensure output arrays match the required segmentation shape."""
+    if epochs.shape != EXPECTED_SHAPE:
+        raise ValueError(f"expected shape {EXPECTED_SHAPE}, got {epochs.shape}")
 
-    print(f"\nProcessing {subject} — {len(seizure_df)} seizures")
+
+def empty_summary_value():
+    """Return a CSV-friendly missing value."""
+    return np.nan
+
+
+def summary_record(
+    row: pd.Series,
+    window: str,
+    output_file: Path,
+    status: str,
+    window_start_sec=empty_summary_value(),
+    window_end_sec=empty_summary_value(),
+    baseline_source_recording_file: str = "",
+    n_epochs=empty_summary_value(),
+    n_channels=empty_summary_value(),
+    n_samples=empty_summary_value(),
+    error_message: str = "",
+) -> dict:
+    """Build one segmentation summary row."""
+    return {
+        "subject_id": row["subject_id"],
+        "seizure_id": row["seizure_id"],
+        "recording_file": row["recording_file"],
+        "seizure_start_sec": float(row["seizure_start_sec"]),
+        "seizure_end_sec": float(row["seizure_end_sec"]),
+        "window": window,
+        "window_start_sec": window_start_sec,
+        "window_end_sec": window_end_sec,
+        "baseline_source_recording_file": baseline_source_recording_file,
+        "n_epochs": n_epochs,
+        "n_channels": n_channels,
+        "n_samples": n_samples,
+        "output_file": str(output_file),
+        "status": status,
+        "error_message": error_message,
+    }
+
+
+def existing_segment_record(row: pd.Series, window: str, output_file: Path) -> dict:
+    """Build a summary row for an existing output that is not overwritten."""
+    try:
+        existing = np.load(output_file, mmap_mode="r")
+        n_epochs, n_channels, n_samples = existing.shape
+        error_message = "output exists; pass --overwrite to regenerate"
+        status = "skipped_existing"
+        if existing.shape != EXPECTED_SHAPE:
+            status = "failed_existing_shape"
+            error_message = (
+                f"existing output has shape {existing.shape}; "
+                f"expected {EXPECTED_SHAPE}; pass --overwrite to regenerate"
+            )
+    except Exception as exc:
+        n_epochs = n_channels = n_samples = empty_summary_value()
+        status = "failed_existing_read"
+        error_message = f"could not inspect existing output: {exc}"
+
+    return summary_record(
+        row=row,
+        window=window,
+        output_file=output_file,
+        status=status,
+        n_epochs=n_epochs,
+        n_channels=n_channels,
+        n_samples=n_samples,
+        error_message=error_message,
+    )
+
+
+def failed_window_records(row: pd.Series, message: str) -> list[dict]:
+    """Build failed summary rows for every window of a seizure."""
+    return [
+        summary_record(
+            row=row,
+            window=window,
+            output_file=output_path_for_segment(
+                str(row["subject_id"]), str(row["seizure_id"]), window
+            ),
+            status="failed",
+            error_message=message,
+        )
+        for window in WINDOW_OFFSETS
+    ]
+
+
+def process_window(
+    row: pd.Series,
+    window: str,
+    raw: mne.io.BaseRaw,
+    all_seizures: pd.DataFrame,
+    overwrite: bool,
+) -> dict:
+    """Extract, epoch, validate, and save one seizure window."""
+    subject_id = str(row["subject_id"])
+    seizure_id = str(row["seizure_id"])
+    recording_file = str(row["recording_file"])
+    output_file = output_path_for_segment(subject_id, seizure_id, window)
+
+    if output_file.exists() and not overwrite:
+        print(f"  [skip] {window}: existing output {output_file.name}")
+        return existing_segment_record(row, window, output_file)
+
+    try:
+        seizure_intervals = seizure_intervals_for_recording(
+            all_seizures, subject_id, recording_file
+        )
+        start_sec, end_sec = window_bounds(
+            window,
+            float(row["seizure_start_sec"]),
+            raw,
+            seizure_intervals,
+        )
+        window_data = extract_window(raw, start_sec, end_sec)
+        epochs = split_into_epochs(window_data, float(raw.info["sfreq"]))
+        validate_epochs(epochs)
+
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        np.save(output_file, epochs)
+        print(f"  [ok] {window}: {start_sec:.1f}-{end_sec:.1f}s -> {epochs.shape}")
+
+        return summary_record(
+            row=row,
+            window=window,
+            window_start_sec=start_sec,
+            window_end_sec=end_sec,
+            baseline_source_recording_file=recording_file if window == "Baseline" else "",
+            n_epochs=epochs.shape[0],
+            n_channels=epochs.shape[1],
+            n_samples=epochs.shape[2],
+            output_file=output_file,
+            status="saved",
+        )
+    except Exception as exc:
+        print(f"  [fail] {window}: {exc}")
+        return summary_record(
+            row=row,
+            window=window,
+            output_file=output_file,
+            status="failed",
+            error_message=str(exc),
+        )
+
+
+def process_seizures(
+    seizures: pd.DataFrame, all_seizures: pd.DataFrame, overwrite: bool
+) -> list[dict]:
+    """Process selected usable seizures and return summary records."""
+    records = []
+
+    for idx, row in seizures.iterrows():
+        subject_id = str(row["subject_id"])
+        seizure_id = str(row["seizure_id"])
+        recording_file = str(row["recording_file"])
+
+        print(
+            f"\n[{idx + 1:03d}/{len(seizures):03d}] "
+            f"{subject_id} {seizure_id} {recording_file}"
+        )
+
+        try:
+            raw = load_preprocessed_raw(subject_id, recording_file)
+            print(
+                f"  FIF: sfreq={float(raw.info['sfreq']):.1f}, "
+                f"channels={len(raw.ch_names)}, duration={recording_duration_sec(raw):.1f}s"
+            )
+        except Exception as exc:
+            message = str(exc)
+            print(f"  [fail] could not load FIF: {message}")
+            records.extend(failed_window_records(row, message))
+            continue
+
+        for window in WINDOW_OFFSETS:
+            records.append(
+                process_window(
+                    row=row,
+                    window=window,
+                    raw=raw,
+                    all_seizures=all_seizures,
+                    overwrite=overwrite,
+                )
+            )
+
+        if hasattr(raw, "close"):
+            raw.close()
+
+    return records
+
+
+def save_summary(records: list[dict]) -> pd.DataFrame:
+    """Write the segmentation summary CSV."""
+    SEGMENTATION_DIR.mkdir(parents=True, exist_ok=True)
+    summary = pd.DataFrame(records, columns=SUMMARY_COLUMNS)
+    summary = summary.sort_values(["subject_id", "seizure_id", "window"]).reset_index(
+        drop=True
+    )
+    summary.to_csv(SUMMARY_PATH, index=False)
+    return summary
+
+
+def main() -> None:
+    """Run multi-subject segmentation from preprocessed FIF recordings."""
+    args = parse_args()
+    eligibility = load_eligibility_table()
+    subject = args.subject if args.subject else None
+    seizures = select_seizures_to_process(eligibility, subject)
+
+    if seizures.empty:
+        if subject:
+            print(f"No usable seizures found for {subject} in {SCREENING_PATH}.")
+        else:
+            print(f"No usable seizures found in {SCREENING_PATH}.")
+        return
+
     print("=" * 60)
+    print("CHB-MIT Multi-Subject Segmentation")
+    print("=" * 60)
+    print(f"Screening table : {SCREENING_PATH}")
+    print(f"Subjects        : {', '.join(sorted(seizures['subject_id'].unique()))}")
+    print(f"Usable seizures : {len(seizures)}")
+    print(f"Overwrite       : {'YES' if args.overwrite else 'NO'}")
+    print(f"Segments dir    : {SEGMENTS_DIR}")
+    print(f"Expected shape  : {EXPECTED_SHAPE}")
 
-    summary_records = []
+    records = process_seizures(seizures, eligibility, overwrite=args.overwrite)
+    summary = save_summary(records)
 
-    for idx, row in seizure_df.iterrows():
-        edf_name    = row['file']
-        onset_sec   = row['start_sec']
-        edf_path    = subject_raw_dir / edf_name
-        seizure_id  = f"{subject}_sz{idx+1:02d}"
+    saved = int((summary["status"] == "saved").sum())
+    skipped = int(summary["status"].astype(str).str.startswith("skipped").sum())
+    failed = int(summary["status"].astype(str).str.startswith("failed").sum())
 
-        print(f"\n[Seizure {idx+1}] {edf_name} — onset at {onset_sec}s")
+    print("\n" + "=" * 60)
+    print("Segmentation complete")
+    print("=" * 60)
+    print(f"Saved this run   : {saved}")
+    print(f"Skipped existing : {skipped}")
+    print(f"Failed windows   : {failed}")
+    print(f"Summary saved    : {SUMMARY_PATH}")
+    print(f"Summary rows     : {len(summary)}")
 
-        # Load and preprocess the EDF
-        raw   = load_and_preprocess(edf_path)
-        sfreq = raw.info['sfreq']
-
-        # ── Define window boundaries ──────────────────────────────────────
-        windows = {
-            "T2": (onset_sec - WINDOW_SEC,
-                   onset_sec),
-            "T1": (onset_sec - 2 * WINDOW_SEC,
-                   onset_sec - WINDOW_SEC),
-            "T0": (onset_sec - 3 * WINDOW_SEC,
-                   onset_sec - 2 * WINDOW_SEC),
-        }
-
-        # ── Check all pre-ictal windows fit inside the file ───────────────
-        file_duration   = raw.times[-1]
-        t0_start        = onset_sec - PRE_ICTAL_SEC
-
-        if t0_start < 0:
-            print(f"  [skip] Not enough pre-ictal data "
-                  f"(need {PRE_ICTAL_SEC}s before onset, "
-                  f"only {onset_sec}s available)")
-            continue
-
-        # ── Extract pre-ictal windows ─────────────────────────────────────
-        extracted = {}
-        valid     = True
-
-        for label, (start, end) in windows.items():
-            data = extract_window(raw, start, end)
-            if data is None:
-                print(f"  [skip] {label} window out of bounds")
-                valid = False
-                break
-            extracted[label] = data
-            print(f"  [ok] {label}: {start:.0f}s → {end:.0f}s  "
-                  f"shape: {data.shape}")
-
-        if not valid:
-            continue
-
-        # ── Extract baseline ───────────────────────────────────────────────
-        # Use only seizures in this same file for the forbidden zones
-        file_seizures = seizure_df[seizure_df['file'] == edf_name]
-        baseline      = find_baseline(raw, file_seizures)
-
-        if baseline is None:
-            print(f"  [skip] No valid baseline found in {edf_name}")
-            continue
-
-        extracted['Baseline'] = baseline
-        print(f"  [ok] Baseline: shape {baseline.shape}")
-
-        # ── Split into 2-second epochs ─────────────────────────────────────
-        print(f"  Splitting into {EPOCH_SEC}s epochs ...")
-        for label, data in extracted.items():
-            epochs     = split_into_epochs(data, sfreq)
-            save_path  = subject_proc_dir / f"{seizure_id}_{label}.npy"
-            np.save(save_path, epochs)
-            print(f"  [saved] {save_path.name}  "
-                  f"→ {epochs.shape[0]} epochs × "
-                  f"{epochs.shape[1]} channels × "
-                  f"{epochs.shape[2]} samples")
-
-            summary_records.append({
-                "subject"   : subject,
-                "seizure_id": seizure_id,
-                "file"      : edf_name,
-                "onset_sec" : onset_sec,
-                "window"    : label,
-                "n_epochs"  : epochs.shape[0],
-                "n_channels": epochs.shape[1],
-                "n_samples" : epochs.shape[2],
-                "saved_as"  : save_path.name
-            })
-
-    # ── Save summary ───────────────────────────────────────────────────────
-    summary_df   = pd.DataFrame(summary_records)
-    summary_path = ANNOT_DIR / f"{subject}_segments_summary.csv"
-    summary_df.to_csv(summary_path, index=False)
-
-    print(f"\n{'='*60}")
-    print(f"Segmentation complete!")
-    print(f"Saved {len(summary_records)} segment files")
-    print(f"Summary → {summary_path}")
-    print(f"\n{summary_df.to_string(index=False)}")
-
-    return summary_df
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# MAIN
-# ══════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-
-    print("=" * 60)
-    print(f"  CHB-MIT Segmentation Pipeline — Subject: {SUBJECT}")
-    print("=" * 60)
-
-    summary = process_subject(SUBJECT)
-
-    print("\n── Final summary ──")
-    print(f"Total windows extracted : {len(summary)}")
-    print(f"Unique seizures         : {summary['seizure_id'].nunique()}")
-    print(f"Windows per seizure     : Baseline, T0, T1, T2")
-    print(f"\nNext step: run 03_connectivity.py")
+    main()
