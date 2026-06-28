@@ -1,6 +1,255 @@
 \chapter{Discussion}
+\label{chap:discussion}
 
-This chapter will interpret the findings in relation to seizure prediction, functional brain networks, and prior literature.
+\section{Overview of the Main Finding}
+\label{sec:discussion-main-finding}
 
-Limitations such as single-subject validation, small number of seizures, thresholding choices, and sensitivity to connectivity estimation will be discussed.
+This thesis investigated whether graph-theoretical features of scalp EEG
+functional connectivity change across temporal windows before epileptic seizure
+onset. The analysis was exploratory and descriptive in nature: it was designed
+to characterize preictal network organization, not to establish a clinical
+biomarker or to build a seizure prediction system.
 
+After correction for multiple comparisons, the main finding was a significant
+temporal-window effect for global efficiency computed from delta-band coherence
+networks. This effect survived FDR correction in both the seizure-level omnibus
+analysis and the subject-average omnibus analysis. At the seizure level, the
+planned post-hoc comparisons localized the strongest corrected difference to
+the Baseline-vs-T1 contrast, where global efficiency was higher in T1 than in
+the Baseline window. No preictal T0--T1--T2 trend survived FDR correction.
+
+This result suggests that, within the present pipeline, the most consistent
+preictal alteration was not a broad change across all graph measures,
+connectivity methods, or frequency bands. Instead, the corrected evidence was
+specific to one network feature: global efficiency of delta-band coherence
+networks. Therefore, the result should be interpreted as a focused exploratory
+finding rather than as evidence for a general preictal network signature.
+
+\section{Interpretation of Delta-Band Coherence Global Efficiency}
+\label{sec:discussion-delta-coherence-efficiency}
+
+Global efficiency is commonly interpreted as a measure of network integration,
+because it reflects how efficiently information can be exchanged across the
+network through short paths \cite{Latora2001,Rubinov2010}. In the present
+analysis, higher global efficiency in delta-band coherence networks during T1
+indicates that, after graph construction and thresholding, the retained
+functional network had a more globally integrated structure than during the
+interictal Baseline window.
+
+This finding is compatible with the general idea that seizure generation may be
+associated with changes in large-scale functional organization before clinical
+onset. However, the result should be interpreted cautiously. The networks in
+this thesis are sensor-level scalp EEG networks, where nodes correspond to
+bipolar EEG channels rather than directly to anatomical brain regions. Moreover,
+coherence may be influenced by volume conduction and common signal components.
+For this reason, the result is best described as a change in scalp EEG
+functional network organization, not as direct evidence of a specific anatomical
+mechanism.
+
+The frequency specificity of the result is also relevant. The corrected effect
+appeared in the delta band, while no other frequency band survived correction
+for the same metric and method. This suggests that slow-frequency coherence may
+carry information about preictal network changes in this dataset. Previous
+epilepsy network studies have also reported frequency-dependent network changes,
+although the specific bands and metrics differ across studies
+\cite{Ponten2007,Vecchio2016,Lanzone2022}. Therefore, the present result fits
+the broader idea that seizure-related network organization may depend on
+frequency band, but it should not be generalized beyond the tested dataset and
+pipeline.
+
+\section{Comparison with Vecchio et al.}
+\label{sec:discussion-comparison-vecchio}
+
+The present thesis was inspired by the pre-seizure graph-theoretical study of
+Vecchio et al. \cite{Vecchio2016}. Their work analyzed the architecture of
+local connections around the epileptic focus using intracranial EEG. They
+divided the pre-seizure period into consecutive three-minute windows and
+computed coherence-based graph measures across several frequency bands. This
+temporal structure directly motivated the Baseline, T0, T1, and T2 design used
+in the present thesis.
+
+There are important similarities between the two studies. Both approaches treat
+seizure development as a network-level process rather than only as a
+single-channel signal phenomenon. Both use coherence as one of the central
+connectivity measures, analyze graph-theoretical features across frequency
+bands, and examine whether network organization changes before seizure onset.
+In this sense, the present thesis extends the same general idea to a different
+recording setting: scalp EEG from the CHB-MIT dataset.
+
+However, the methodological differences are substantial. Vecchio et al. used
+intracranial stereo-EEG recordings and focused on local contacts near the
+epileptic focus \cite{Vecchio2016}. In contrast, the present thesis used scalp
+EEG and a fixed \num{22}-channel bipolar montage. Therefore, the networks in
+the two studies represent different physiological and spatial levels.
+Intracranial EEG provides more local and spatially specific information, while
+scalp EEG is non-invasive but more affected by volume conduction, artifacts, and
+sensor-level mixing.
+
+The main findings also differ. Vecchio et al. reported pre-seizure changes in
+small-world-related network organization, especially in theta and alpha2
+frequency ranges \cite{Vecchio2016}. In the present thesis, the strongest
+FDR-corrected effect was not small-worldness but global efficiency, and it was
+observed in delta-band coherence networks. This difference may reflect the
+recording modality, the use of scalp rather than intracranial EEG, the larger
+and more heterogeneous dataset, the fixed whole-scalp sensor montage, the graph
+construction choices, or the statistical correction across many
+metric--method--band combinations.
+
+Therefore, the present results should not be viewed as a direct replication of
+Vecchio et al. Instead, they provide a related scalp EEG analysis inspired by
+their temporal and graph-theoretical framework. Both studies support the
+broader idea that network organization can change before seizure onset, but
+they point to different specific graph features and frequency bands. This
+underlines the importance of recording modality, preprocessing, connectivity
+definition, graph construction, and statistical design when comparing
+graph-theoretical epilepsy studies.
+
+\section{Seizure-Level and Subject-Average Results}
+\label{sec:discussion-seizure-subject-average}
+
+The primary seizure-level analysis used seizures as repeated-measures units
+while accounting for the fact that multiple seizures could come from the same
+subject/case identifier. This analysis found a significant omnibus window
+effect for delta-band coherence global efficiency and localized the strongest
+post-hoc effect to Baseline vs T1.
+
+The subject-average sensitivity analysis asked whether the same pattern remained
+visible when each subject/case identifier contributed one average trajectory.
+This is important because seizure counts were not balanced across subjects, and
+subjects with many seizures could otherwise have a stronger influence on the
+seizure-level analysis. The same metric--method--band combination survived FDR
+correction in the subject-average omnibus analysis, supporting the robustness of
+the main temporal-window effect at the subject/case level.
+
+However, the subject-average post-hoc comparisons did not survive FDR
+correction. This means that the subject-average analysis supported the presence
+of an overall temporal-window effect, but did not provide corrected evidence for
+one specific Baseline-vs-preictal contrast. A cautious interpretation is that
+the Baseline-to-T1 increase was most clearly expressed at the seizure level,
+while the subject-average analysis confirmed the general direction of the
+effect but with reduced power and increased variability across subject/case
+identifiers.
+
+\section{Why Most Metrics Did Not Survive Correction}
+\label{sec:discussion-nonsignificant-results}
+
+Most graph metrics, connectivity methods, and frequency bands did not survive
+FDR correction. This is an important part of the result rather than a failure of
+the analysis. The pipeline tested many combinations of graph metric,
+connectivity method, and frequency band. Multiple-comparison correction was
+therefore necessary to reduce the risk of false-positive interpretation. Under
+this correction, only the strongest and most consistent effect remained
+significant.
+
+There are several possible reasons why most effects were not significant. First,
+preictal changes may be heterogeneous across subjects and seizures. A graph
+metric that changes before some seizures may not change consistently across the
+full dataset. Second, scalp EEG may be less sensitive to local epileptogenic
+network changes than intracranial EEG. Third, different connectivity measures
+capture different aspects of signal dependence, and not all of them may be
+sensitive to the same preictal dynamics. Fourth, graph metrics are affected by
+thresholding and network construction choices, so weak effects may not be
+stable across the full pipeline \cite{VanWijk2010,Garrison2015,Adamovich2022}.
+
+The absence of widespread corrected effects also supports a cautious conclusion:
+the present analysis does not show a broad, universal preictal graph-theoretical
+signature in CHB-MIT scalp EEG. Instead, it identifies one corrected
+metric--method--band combination that merits further investigation.
+
+\section{Methodological Strengths}
+\label{sec:discussion-strengths}
+
+A strength of this thesis is that the analysis was applied to the screened
+full CHB-MIT dataset rather than only to a single subject or one selected
+recording. The screening procedure retained seizures only when sufficient
+preictal duration and the required EEG channels were available. This allowed the
+analysis to use a consistent temporal-window structure and a fixed node
+definition across retained seizures.
+
+Another strength is the use of multiple connectivity methods. Coherence, wPLI,
+and AEC capture different types of functional relationships. Coherence captures
+frequency-specific linear coupling, wPLI emphasizes non-zero phase-lag
+relationships and is less sensitive to zero-lag effects, and AEC captures
+co-fluctuations in amplitude envelopes \cite{Vinck2011,Bruns2000,Hipp2012}.
+Using multiple methods made it possible to test whether preictal effects were
+method-specific rather than assuming that one connectivity definition was
+sufficient.
+
+The statistical design is also a strength. The primary analysis preserved the
+seizure-level repeated-measures structure and accounted for nesting within
+subject/case identifiers. The subject-average sensitivity analysis then tested
+whether the main finding remained visible when each subject/case contributed
+equally. Finally, FDR correction was applied to reduce the risk of
+over-interpreting isolated uncorrected effects.
+
+\section{Limitations}
+\label{sec:discussion-limitations}
+
+The study also has several limitations. First, the analysis used scalp EEG,
+which has lower spatial specificity than intracranial EEG. Functional networks
+constructed from scalp EEG channels should therefore be interpreted as
+sensor-level networks, not direct maps of anatomical brain connectivity.
+
+Second, no manual artifact rejection or ICA-based artifact correction was
+applied. This decision made the pipeline more reproducible and avoided
+subjective manual decisions, but it also means that ocular, muscular, movement,
+or electrode artifacts may have influenced some connectivity estimates. This is
+especially relevant for scalp EEG connectivity analysis.
+
+Third, coherence-based connectivity can be affected by volume conduction and
+common signal components. The inclusion of wPLI partly addressed this concern,
+because wPLI is designed to reduce sensitivity to zero-lag coupling
+\cite{Vinck2011}. However, the main corrected result was found for coherence,
+so volume conduction remains an important limitation when interpreting the
+finding.
+
+Fourth, graph metrics depend on methodological choices such as proportional
+thresholding, treatment of negative values, and handling of disconnected graphs.
+Although the same choices were applied consistently across all matrices, there
+is no universally optimal threshold for EEG functional connectivity networks
+\cite{VanWijk2010,Garrison2015,Adamovich2022}. The results should therefore be
+understood as conditional on the graph construction pipeline used in this
+thesis.
+
+Fifth, the CHB-MIT dataset is heterogeneous. Subjects differ in seizure count,
+recording duration, channel availability, and clinical characteristics.
+Moreover, the CHB-MIT case identifiers do not perfectly correspond to
+independent biological subjects, because one case folder is a later recording
+from the same individual as another case folder. For this reason, the thesis
+uses the term subject/case identifier and interprets group-level results
+cautiously.
+
+Finally, this thesis did not build or validate a seizure prediction classifier.
+The analysis identifies an exploratory network-level finding, but it does not
+demonstrate predictive performance on unseen subjects or seizures. A prediction
+model would require additional design choices, including subject-wise train-test
+splitting, leakage control, feature selection, model validation, and evaluation
+of sensitivity and false-alarm rates \cite{Mormann2007,Kuhlmann2018}.
+
+\section{Implications for Future Work}
+\label{sec:discussion-future-work}
+
+The main implication of this thesis is that graph-theoretical analysis of scalp
+EEG functional connectivity can reveal statistically supported preictal network
+differences in the CHB-MIT dataset, but the evidence is specific rather than
+broad. The strongest corrected effect involved delta-band coherence global
+efficiency, suggesting that global integration of slow-frequency coherence
+networks may be a useful feature to examine in future work.
+
+Future studies could extend this work in several directions. First, artifact
+rejection and robustness analyses could be added to test whether the main
+finding remains stable after removing noisy epochs or recordings. Second,
+threshold sensitivity analyses could examine whether the result is preserved
+across different graph densities. Third, alternative graph construction methods
+could be tested, including weighted metrics without hard thresholding. Fourth,
+the analysis could be repeated with subject-specific models to evaluate whether
+preictal graph changes are more consistent within individual patients than
+across the full dataset.
+
+A prediction-oriented extension would also be possible. Such work should use a
+strict subject-wise validation strategy to avoid data leakage and to test
+generalization to unseen subjects. The present findings could guide feature
+selection, but they should not be treated as sufficient evidence for clinical
+prediction. Instead, they provide an exploratory and interpretable foundation
+for future seizure-prediction studies based on functional connectivity and
+graph-theoretical EEG features.

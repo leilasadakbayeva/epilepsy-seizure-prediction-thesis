@@ -76,37 +76,44 @@
     \academicyear{2025-2026}
 
     % Update according to the official graduation session.
-    \session{ to be confirmed}
+    \session{to be confirmed}
 
     \frontispiece
+    \newpage
+    \begin{flushright}
+    \emph{
+    \LARGE{To my brother,}\\\vspace{2mm} 
+    \LARGE{whose strength and courage}\\\vspace{2mm} 
+    \LARGE{in living with epilepsy}\\\vspace{2mm} 
+    \LARGE{inspired this work.}\\\vspace{2mm} 
+    }
+    \end{flushright}
 
     % ----------------------------------------------------------------------
     % Abstract
     % ----------------------------------------------------------------------
-
+    
     \chapter*{Abstract}
+    Epileptic seizures may be preceded by subtle changes in brain activity that are
+    not always visible in raw EEG signals. This thesis investigates whether such
+    preictal changes can be characterized using graph-theoretical features of scalp
+    EEG functional connectivity in the CHB-MIT dataset.
 
-    Epileptic seizure prediction is a challenging problem in biomedical signal
-    processing, with potential relevance for clinical monitoring and patient
-    safety. This thesis investigates whether pre-ictal changes in brain network
-    topology can be detected from scalp electroencephalography (EEG) recordings
-    using functional connectivity and graph-theoretic analysis.
+    A complete analysis pipeline was developed to screen the dataset, preprocess EEG
+    recordings, extract seizure-centered temporal windows, compute functional
+    connectivity, construct graph representations, and perform exploratory
+    statistical analysis. Each usable seizure was represented by an interictal
+    Baseline window and three consecutive preictal windows, T0, T1, and T2.
+    Connectivity was estimated across six frequency bands using coherence, weighted
+    phase-lag index, and amplitude envelope correlation. The resulting connectivity
+    matrices were converted into weighted functional networks and summarized using
+    graph metrics.
 
-    The proposed pipeline is evaluated on the CHB-MIT scalp EEG dataset. EEG
-    recordings are segmented into baseline and pre-ictal windows preceding
-    seizure onset. For each segment, functional connectivity matrices are
-    computed across multiple frequency bands using coherence, weighted Phase Lag
-    Index, and amplitude envelope correlation. These matrices are interpreted as
-    weighted brain networks from which graph metrics such as clustering
-    coefficient, global efficiency, characteristic path length, small-worldness,
-    modularity, betweenness centrality, and assortativity are extracted.
-
-    An initial exploratory analysis on subject chb01 shows that delta-band wPLI
-    mean betweenness centrality decreases consistently before seizures and
-    survives false discovery rate correction in a repeated-measures ANOVA. Since
-    this result is obtained from a single-subject pilot analysis, it is treated
-    as preliminary and used to guide further validation on additional subjects
-    and exploratory prediction experiments.
+    Overall, the results suggest that preictal network changes in this dataset were
+    most consistently reflected in altered global integration of delta-band
+    coherence networks. The thesis provides an exploratory graph-theoretical
+    characterization of preictal scalp EEG connectivity and a basis for future
+    prediction-oriented work.
 
     \cleardoublepage
 
@@ -124,9 +131,9 @@
     % Main chapters
     % ----------------------------------------------------------------------
 
-    % \input{chapters/01_introduction}
+    \input{chapters/01_introduction}
 
-    % \input{chapters/02_background_state_of_art}
+    \input{chapters/02_background_state_of_art}
 
     \input{chapters/03_dataset_preprocessing}
 
@@ -136,7 +143,7 @@
 
     \input{chapters/06_experimental_results}
 
-    % \input{chapters/07_discussion}
+    \input{chapters/07_discussion}
 
     % \input{chapters/08_conclusions_future_work}
 

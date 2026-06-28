@@ -1,0 +1,150 @@
+% flowchart.tex
+\documentclass[tikz,border=5pt]{standalone}
+\usepackage{siunitx}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, decorations.pathreplacing}
+\usetikzlibrary{positioning, arrows.meta, decorations.pathreplacing, calc}
+
+\begin{document}
+
+\begin{tikzpicture}[
+    font=\large,
+    node distance=0.75cm,
+    mainbox/.style={
+        rectangle,
+        rounded corners=4pt,
+        draw=black!65,
+        line width=0.6pt,
+        align=center,
+        text width=5.9cm,
+        minimum height=1.05cm,
+        inner sep=6pt
+    },
+    sidebox/.style={
+        rectangle,
+        rounded corners=4pt,
+        draw=black!65,
+        line width=0.6pt,
+        align=center,
+        text width=4.25cm,
+        minimum height=1.15cm,
+        inner sep=6pt
+    },
+    smallbox/.style={
+        rectangle,
+        rounded corners=4pt,
+        draw=black!65,
+        line width=0.6pt,
+        align=center,
+        text width=3.0cm,
+        minimum height=0.9cm,
+        inner sep=5pt
+    },
+    arrow/.style={
+        -{Latex[length=2.5mm]},
+        line width=0.7pt,
+        black!75
+    },
+    groupbrace/.style={
+        decorate,
+        decoration={brace, amplitude=8pt},
+        line width=0.6pt,
+        black!75
+    },
+    grouplabel/.style={
+        align=left,
+        font=\large,
+        text width=4.3cm
+    }
+]
+
+% Main vertical path
+\node[mainbox, fill=blue!12] (start)
+{\textbf{CHB-MIT Dataset}\\
+\num{24} case folders / subject IDs\\
+\num{198} annotated seizures};
+
+\node[mainbox, fill=green!12, below=of start] (metadata)
+{\textbf{Metadata and EDF validation}\\
+\num{24} valid case folders / subject IDs};
+
+\node[mainbox, fill=yellow!18, below=of metadata] (screening)
+{\textbf{Seizure-level screening}\\
+Eligibility criteria applied};
+
+% Exclusion branches
+\node[mainbox, fill=red!12, below left=1.05cm and 0.01cm of screening] (preictal)
+{\textbf{Insufficient preictal duration}\\
+$< \SI{540}{\second}$ before onset\\
+\num{26} seizures};
+
+\node[mainbox, fill=red!12, below right=1.05cm and 0.01cm of screening] (channels)
+{\textbf{Missing required channels}\\
+Incomplete \num{22}-channel montage\\
+\num{17} seizures};
+
+\node[smallbox, fill=orange!18, below=1.55cm of screening] (both)
+{\num{4} seizures failed\\
+both criteria};
+
+\node[smallbox, fill=purple!12, text width=4.25cm, below=of both] (excluded)
+{\num{39} unique excluded seizures};
+
+\node[mainbox, fill=green!14, text width=4.25cm, below=of excluded] (eligible)
+{\num{159} eligible seizures\\
+(\num{124} unique recordings)};
+
+% Arrows
+\draw[arrow] (start) -- (metadata);
+\draw[arrow] (metadata) -- (screening);
+
+\draw[arrow] (screening.south) -- ++(0,-0.35) -| (preictal.north);
+\draw[arrow] (screening.south) -- ++(0,-0.35) -| (channels.north);
+
+\draw[arrow] (preictal.east) -- (both.west);
+\draw[arrow] (channels.west) -- (both.east);
+
+\draw[arrow] (both) -- (excluded);
+\draw[arrow] (excluded) -- (eligible);
+
+% Right-side braces and labels
+\draw[groupbrace]
+    ($(start.north east)+(1.05,0.05)$) --
+    ($(start.south east)+(1.05,-0.05)$)
+    node[midway, right=14pt, grouplabel] {Initial dataset};
+
+\draw[groupbrace]
+    ($(metadata.north east)+(1.05,0.05)$) --
+    ($(metadata.south east)+(1.05,-0.05)$)
+    node[midway, right=14pt, grouplabel] {Case-level validation};
+
+\draw[groupbrace]
+    ($(screening.north east)+(1.05,0.05)$) --
+    ($(screening.south east)+(1.05,-0.05)$)
+    node[midway, right=14pt, grouplabel] {Seizure-level screening};
+
+\draw[groupbrace]
+    ($(channels.north east)+(0.85,0.10)$) --
+    ($(channels.north east |- both.south east)+(0.85,-0.10)$)
+    node[midway, right=14pt, grouplabel]
+    {Exclusion reasons\\
+    not mutually exclusive};
+
+\draw[groupbrace]
+    ($(channels.north east |- excluded.north east)+(0.85,0.08)$) --
+    ($(channels.north east |- excluded.south east)+(0.85,-0.08)$)
+    node[midway, right=14pt, grouplabel]
+    {Excluded after\\
+    deduplication};
+
+\draw[groupbrace]
+    ($(channels.north east |- eligible.north east)+(0.85,0.08)$) --
+    ($(channels.north east |- eligible.south east)+(0.85,-0.08)$)
+    node[midway, right=14pt, grouplabel]
+    {Final analysis cohort};
+
+\end{tikzpicture}
+
+\end{document}

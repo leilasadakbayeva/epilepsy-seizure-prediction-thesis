@@ -1,20 +1,233 @@
 \chapter{Background and State of the Art}
+\label{chap:background-state-of-art}
 
-This chapter will summarize the clinical and technical background needed for the thesis, including epilepsy, EEG analysis, seizure prediction, functional connectivity, and graph theory.
+\section{Epilepsy and EEG}
+\label{sec:background-epilepsy-eeg}
 
-Prior studies have investigated changes in network organization before seizures. This section will compare relevant methods and position the thesis contribution.
+Epilepsy is a neurological disorder characterized by an enduring predisposition
+to generate epileptic seizures. According to the International League Against
+Epilepsy, epilepsy is not defined only by the occurrence of a single seizure,
+but by a clinical condition in which the probability of further seizures is
+sufficiently high or in which an epilepsy syndrome has been diagnosed
+\cite{Fisher2014}. An epileptic seizure corresponds to a transient occurrence
+of signs or symptoms caused by abnormal excessive or synchronous neuronal
+activity in the brain.
 
-% Table placeholder:
-% \begin{table}[htbp]
-%     \centering
-%     \caption{Example literature comparison table.}
-%     \label{tab:literature}
-%     \begin{tabular}{lll}
-%         \toprule
-%         Study & Dataset & Method \\
-%         \midrule
-%         Placeholder & Placeholder & Placeholder \\
-%         \bottomrule
-%     \end{tabular}
-% \end{table}
+Electroencephalography (EEG) is one of the main techniques used to study
+epileptic activity. It records voltage fluctuations produced by brain activity
+through electrodes placed on the scalp or, in invasive studies, directly inside
+or on the surface of the brain. Scalp EEG is non-invasive and provides high
+temporal resolution, making it suitable for studying rapid changes in brain
+activity around seizure onset. However, scalp EEG is also affected by several
+limitations, including volume conduction, movement artifacts, muscle activity,
+electrode noise, and variability in electrode montages across recordings.
 
+\section{Seizure Prediction and Preictal State Detection}
+\label{sec:background-seizure-prediction}
+
+Seizure prediction aims to identify a warning period before seizure onset. A
+successful prediction system would distinguish preictal activity from interictal
+activity early enough to allow a useful intervention. This problem has motivated
+many studies using EEG features, machine learning, and deep learning methods.
+However, seizure prediction remains challenging because preictal patterns may be
+weak, patient-specific, variable across seizures, and difficult to separate from
+normal fluctuations in interictal EEG activity \cite{Mormann2007,Kuhlmann2018}.
+
+A key difficulty is the definition of the preictal period. There is no
+universally accepted preictal duration that applies to all patients and all
+seizure types. Some studies define the preictal period as several minutes before
+seizure onset, while others use longer intervals. The choice of preictal window
+affects feature extraction, statistical testing, and the interpretation of
+results. For this reason, studies must clearly define their temporal windows and
+avoid treating all pre-seizure activity as a single homogeneous state.
+
+In this thesis, seizure prediction is the broader motivation, but the main
+objective is not to build a final classifier. Instead, the focus is on
+preictal network characterization. The analysis asks whether graph-theoretical
+features of scalp EEG functional connectivity differ between an interictal
+Baseline window and consecutive preictal windows. This exploratory step is
+important because a prediction model should ideally be motivated by measurable
+and interpretable preictal changes.
+
+\section{The CHB-MIT Scalp EEG Dataset}
+\label{sec:background-chbmit}
+
+The CHB-MIT scalp EEG dataset is widely used in computational studies of
+epileptic seizure analysis. It contains long-term scalp EEG recordings from
+pediatric epilepsy cases, together with seizure annotations. Because the data
+are publicly available and include multiple subjects and seizures, the dataset
+has been used in many seizure detection and seizure prediction studies
+\cite{Tsiouris2018}.
+
+Despite its usefulness, the CHB-MIT dataset presents methodological challenges.
+The number of seizures differs across case folders, and not all recordings have
+the same available channels. Some recordings also differ in montage structure or
+contain duplicated channel labels. These issues are important for graph-based
+analysis because graph nodes must have consistent meaning across subjects,
+seizures, and time windows. If different recordings use different channel sets,
+then graph metrics may become difficult to compare.
+
+Previous studies using CHB-MIT have addressed this problem by selecting fixed
+subsets of channels that are consistently available across recordings
+\cite{Tsiouris2018}. The present thesis follows the same general principle of
+montage standardization, but uses a fixed \num{22}-channel bipolar montage after
+screening. Recordings and seizures were retained only when the required channels
+and sufficient preictal duration were available. This ensured that all retained
+connectivity matrices had the same node definitions and could be compared
+across the full analysis pipeline.
+
+\section{Functional Connectivity in EEG}
+\label{sec:background-functional-connectivity}
+
+Functional connectivity refers to statistical dependence between signals
+recorded from different brain regions or sensors \cite{Friston1994}. In EEG
+analysis, functional connectivity is often estimated between pairs of channels.
+The resulting pairwise values can be organized into a connectivity matrix, where
+each matrix entry represents the estimated coupling between two EEG signals.
+
+Different connectivity measures capture different types of relationships.
+Coherence measures frequency-specific linear coupling between two signals and
+has been widely used in EEG analysis. It is useful when the research question
+concerns whether two signals share oscillatory activity in a given frequency
+band. However, coherence can be influenced by volume conduction and common
+reference effects, because zero-lag correlations may arise from signal mixing
+rather than true physiological interaction.
+
+Phase-based measures were developed partly to reduce this problem. The weighted
+phase-lag index (wPLI) emphasizes consistent non-zero phase-lag relationships
+and is less sensitive to zero-phase coupling caused by volume conduction
+\cite{Vinck2011}. This makes wPLI useful for EEG connectivity analysis, where
+spurious zero-lag relationships are a known concern. Nevertheless, wPLI captures
+only a specific aspect of coupling and may not reflect all forms of functional
+interaction.
+
+Amplitude-based methods provide another complementary view. Amplitude envelope
+correlation (AEC) measures the correlation between the envelopes of
+band-limited signals and can capture co-fluctuations in oscillatory power
+\cite{Bruns2000,Hipp2012}. This can reveal relationships that are not
+necessarily phase-locked. In the present thesis, coherence, wPLI, and AEC were
+used together to examine whether preictal network changes depend on the
+connectivity definition.
+
+Connectivity analysis is also strongly frequency-dependent. EEG rhythms are
+commonly analyzed in bands such as delta, theta, alpha, and beta. Seizure-related
+changes may appear in some frequency ranges but not others. For this reason, the
+present thesis computes connectivity separately in six frequency bands: delta,
+theta, alpha1, alpha2, beta1, and beta2. This follows the frequency-band
+structure used in the pre-seizure graph-theoretical study by Vecchio et al.
+\cite{Vecchio2016}.
+
+\section{Graph-Theoretical Analysis of Brain Networks}
+\label{sec:background-graph-theory}
+
+Graph theory provides a mathematical framework for studying networks. In a
+functional EEG network, nodes represent EEG channels and edges represent
+functional connectivity values between channel pairs. Once a connectivity matrix
+has been interpreted as a graph, graph-theoretical measures can be used to
+summarize different aspects of network organization \cite{Rubinov2010}.
+
+Several graph metrics are commonly used in brain network analysis. Clustering
+coefficient describes the tendency of neighboring nodes to be connected to one
+another and is often interpreted as a measure of local segregation. Global
+efficiency measures how efficiently information can be exchanged across the
+network and is related to network integration \cite{Latora2001,Rubinov2010}.
+Characteristic path length describes the average shortest-path distance between
+nodes. Modularity measures the degree to which a network can be divided into
+communities or modules. Betweenness centrality identifies nodes that lie on many
+shortest paths and may therefore act as bridges within the network.
+
+Small-world organization is another important concept in brain network
+analysis. Small-world networks combine high local clustering with relatively
+short path lengths, providing a balance between local specialization and global
+integration \cite{Watts1998}. Brain networks have often been studied using this
+framework because efficient neural communication may require both local and
+distributed organization \cite{Rubinov2010}. In epilepsy, changes in
+small-worldness, efficiency, or centrality may reflect altered synchronization
+or reorganization of functional brain networks.
+
+When applying graph theory to EEG connectivity, methodological choices strongly
+affect the results. These include the connectivity measure, frequency band,
+thresholding strategy, treatment of negative values, and handling of disconnected
+graphs. Therefore, graph-theoretical results must be interpreted in relation to
+the full pipeline that produced them. In this thesis, the same preprocessing,
+connectivity estimation, thresholding, and graph metric procedures were applied
+to all retained seizures to support consistent comparison across temporal
+windows.
+
+\section{Graph-Theoretical Studies in Epilepsy}
+\label{sec:background-graph-epilepsy}
+
+Graph-theoretical approaches have been used to study epilepsy because seizures
+can be understood as network phenomena involving abnormal synchronization and
+altered communication between brain regions. Rather than focusing only on signal
+amplitude or spectral power at individual electrodes, graph analysis makes it
+possible to examine how functional interactions are organized across the
+recording montage.
+
+Ponten et al. used graph-theoretical analysis to study intracranial EEG
+recordings during mesial temporal lobe seizures and reported seizure-related
+changes in network measures such as clustering and path length
+\cite{Ponten2007}. This work helped establish the relevance of graph theory for
+studying epileptic brain dynamics. Later studies extended graph analysis to
+different EEG settings, connectivity measures, and clinical questions.
+
+Vecchio et al. performed one of the main studies motivating the present thesis.
+They analyzed pre-seizure network architecture using intracranial EEG and
+computed graph-theoretical measures across consecutive three-minute windows
+before seizure onset \cite{Vecchio2016}. Their study examined whether the local
+network organization of the epileptic focus changed before seizures and reported
+frequency-specific differences in small-world-related properties. The present
+thesis adopts a related temporal-window idea but applies it to scalp EEG from
+CHB-MIT rather than intracranial EEG.
+
+More recent work has also applied graph metrics to scalp EEG in epilepsy.
+Lanzone et al. used EEG connectivity and graph-theoretical measures to study
+changes associated with vagus nerve stimulation cycles in drug-resistant
+epilepsy \cite{Lanzone2022}. Their work illustrates how graph metrics such as
+small-worldness, betweenness centrality, and global efficiency can be used to
+summarize functional EEG network organization in clinical epilepsy research.
+
+Together, these studies support the idea that epilepsy can be investigated as a
+network disorder and that graph-theoretical metrics may reveal changes not
+captured by single-channel EEG features alone. However, results depend on the
+recording modality, patient population, connectivity method, frequency band,
+and statistical design. This creates a need for carefully documented pipelines
+when graph theory is applied to public scalp EEG datasets.
+
+\section{Positioning of the Present Thesis}
+\label{sec:background-positioning}
+
+The present thesis is positioned at the intersection of scalp EEG analysis,
+functional connectivity, graph theory, and exploratory preictal seizure
+characterization. It is inspired by graph-theoretical studies of pre-seizure
+network organization, especially Vecchio et al. \cite{Vecchio2016}, but differs
+from them in several important ways.
+
+First, the present study uses scalp EEG from the CHB-MIT dataset rather than
+intracranial EEG. Scalp EEG is non-invasive and more widely available, but it
+has lower spatial specificity and is more affected by volume conduction and
+artifacts. This makes it important to use multiple connectivity measures and to
+interpret graph metrics cautiously.
+
+Second, the analysis is performed across the screened full dataset rather than
+on a single subject or a small manually selected subset. This required a
+systematic screening procedure to ensure that retained seizures had sufficient
+preictal duration and the required EEG channels. The analysis therefore
+preserves the relationship between subjects, seizures, temporal windows,
+frequency bands, connectivity methods, and graph metrics.
+
+Third, the thesis does not present a final seizure prediction classifier.
+Instead, it asks whether preictal network changes can be detected in a
+statistically interpretable way. This distinction is important because
+classification performance alone does not necessarily explain which aspects of
+EEG network organization change before seizures. By focusing on graph metrics
+and statistical testing, the thesis provides an exploratory basis for future
+prediction work.
+
+The methodological contribution of the thesis is therefore a complete and
+reproducible pipeline for transforming CHB-MIT scalp EEG recordings into
+functional connectivity networks, extracting graph-theoretical metrics, and
+testing temporal-window effects before seizure onset. The scientific objective
+is to evaluate whether these network measures reveal consistent preictal
+alterations and how such findings compare with previous graph-theoretical
+epilepsy studies.
