@@ -37,7 +37,6 @@ EXPECTED_SFREQ = 256.0
 SFREQ_TOLERANCE = 1e-6
 L_FREQ = 0.5
 H_FREQ = 47.0
-NOTCH_FREQ = 60.0
 
 
 # Required 22-channel bipolar montage used by the thesis pipeline.
@@ -241,7 +240,6 @@ def preprocess_recording(edf_path: Path) -> mne.io.BaseRaw:
         )
 
     raw.filter(l_freq=L_FREQ, h_freq=H_FREQ, method="fir", verbose=False)
-    raw.notch_filter(freqs=NOTCH_FREQ, verbose=False)
     return raw
 
 
@@ -405,7 +403,6 @@ def main() -> None:
     print(f"Recordings      : {len(recordings)}")
     print(f"Overwrite       : {'YES' if args.overwrite else 'NO'}")
     print(f"Bandpass        : {L_FREQ}-{H_FREQ} Hz")
-    print(f"Notch           : {NOTCH_FREQ} Hz")
     print(f"Required chans  : {len(REQUIRED_CHANNELS)}")
 
     records = process_recordings(recordings, overwrite=args.overwrite)
