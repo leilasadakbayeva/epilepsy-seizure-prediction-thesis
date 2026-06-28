@@ -18,3 +18,55 @@ __pycache__/
 # Windows
 Thumbs.db
 Desktop.ini
+
+# =========================
+# LaTeX build artifacts
+# =========================
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.ilg
+*.idx
+*.ind
+*.ist
+*.acn
+*.acr
+*.alg
+*.glg
+*.glo
+*.gls
+
+# LaTeX temporary files
+*.tmp
+*.bak
+*.backup
+*.swp
+*.synctex
+
+# =========================
+# Python/cache files
+# =========================
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# =========================
+# OS/editor files
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/settings.json

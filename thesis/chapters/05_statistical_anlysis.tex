@@ -1,0 +1,473 @@
+\chapter{Statistical Analysis}
+\label{chap:statistical-analysis}
+
+\section{Overview of the Statistical Design}
+\label{sec:statistical-design-overview}
+
+The analysis was designed as an exploratory
+full-dataset statistical association analysis, to test whether network properties differed systematically between
+the interictal baseline window and the preictal windows T0, T1, and T2.
+
+Each graph-level observation was derived from one functional connectivity
+network. A network was uniquely identified by the subject/case identifier,
+seizure identifier, temporal window, frequency band, connectivity method, and
+graph metric. The statistical analysis preserved this structure so that graph
+metrics were not treated as independent biological samples simply because they
+were produced across multiple frequency bands, connectivity methods, or
+network measures.
+
+The main experimental factor was temporal window, with four levels:
+Baseline, T0, T1, and T2. Baseline represented an interictal reference window,
+whereas T0, T1, and T2 represented consecutive preictal windows approaching
+seizure onset. The statistical question was whether graph metrics varied across
+these windows, and in particular whether the preictal windows differed from
+Baseline.
+
+The primary analysis was performed at the seizure level. In this analysis,
+each seizure was treated as the repeated-measures unit because the same seizure
+contributed graph metrics across multiple temporal windows. Seizures were
+nested within subject/case identifiers to account for the fact that multiple
+seizures could come from the same CHB-MIT case folder. This design helped avoid
+treating seizures from the same subject/case identifier as fully independent
+observations.
+
+In addition to the seizure-level analysis, a subject-average sensitivity
+analysis was performed. In this analysis, graph metrics were first averaged
+across seizures within each subject/case identifier for each temporal window,
+frequency band, connectivity method, and graph metric. This produced one
+average trajectory per subject/case identifier. The purpose of this analysis
+was to evaluate whether effects observed at the seizure level were also visible
+when each subject/case identifier contributed equally to the group-level
+analysis.
+
+For each graph metric, connectivity method, and frequency band, three types of
+statistical tests were performed. First, an omnibus window-effect test assessed
+whether there was evidence of any difference across Baseline, T0, T1, and T2.
+Second, planned post-hoc paired comparisons tested Baseline against each
+preictal window. Third, a preictal trend analysis examined whether graph
+metrics changed monotonically across T0, T1, and T2 as seizure onset
+approached.
+
+Overall, the statistical design combined a primary seizure-level analysis with
+a subject-average sensitivity analysis. This allowed the thesis to examine both
+seizure-level temporal dynamics and the robustness of these effects at the
+subject/case level, while maintaining a clear distinction between exploratory
+statistical association and predictive modelling.
+
+\section{Data Organization for Statistical Testing}
+\label{sec:data-organization-statistical-testing}
+
+The statistical analysis used the graph feature outputs described in
+\cref{sec:connectivity-graph-pipeline-output}. Each row of the original graph
+feature table represented one functional network derived from a specific
+combination of subject/case identifier, seizure, temporal window, frequency
+band, and connectivity method. The graph metrics were then converted into a
+long-format table, where each row contained one value for one graph metric.
+
+The long-format organization made it possible to analyze each graph metric,
+connectivity method, and frequency band combination separately. For every such
+combination, the statistical model compared values across temporal windows.
+This avoided combining graph metrics with different meanings, connectivity
+methods with different physiological interpretations, or frequency bands with
+different spectral content.
+
+The identifiers retained for each statistical row were: subject/case identifier,
+seizure identifier, temporal window, frequency band, connectivity method, graph metric. graph metric value.
+
+This organization preserved the hierarchical structure of the dataset.
+Observations were grouped by seizure and subject/case identifier rather than
+treated as unrelated measurements.
+
+\subsection{Seizure-Level Analysis}
+\label{subsec:seizure-level-analysis}
+
+The seizure-level analysis was the primary statistical analysis. In this
+analysis, each seizure contributed repeated measurements across temporal
+windows. For a given graph metric, connectivity method, and frequency band, the
+same seizure could contribute values for Baseline, T0, T1, and T2. This made it
+possible to test whether the graph metric changed within seizures as the EEG
+moved from the interictal baseline window toward seizure onset.
+
+In the primary model, seizures were treated as repeated-measures units nested
+within subject/case identifiers. This was important because several CHB-MIT
+case folders contain multiple seizures. Treating all seizure-level rows as
+fully independent would overstate the amount of independent biological
+information in the dataset. The mixed-model structure was therefore used to
+account for repeated seizure observations while retaining the seizure-level
+temporal information.
+
+The seizure-level analysis is useful because it preserves variability between
+seizures within the same subject/case identifier. This is relevant for epilepsy
+data, where different seizures from the same individual may show different
+preictal dynamics. However, because some subject/case identifiers contributed
+more seizures than others, a subject-average sensitivity analysis was also
+performed.
+
+\subsection{Subject-Average Sensitivity Analysis}
+\label{subsec:subject-average-sensitivity-analysis}
+
+The subject-average sensitivity analysis was performed to evaluate whether
+patterns observed at the seizure level were also visible when each subject/case
+identifier contributed equally. In this analysis, graph metric values were
+first averaged across seizures within each subject/case identifier for each
+temporal window, frequency band, connectivity method, and graph metric.
+
+The resulting subject-average table contained one average value per
+subject/case identifier and temporal window for each metric--method--band
+combination. Standard deviation across seizures and the number of contributing
+seizures were also retained as descriptive information. The statistical tests
+were then repeated using these subject-level average trajectories.
+
+This analysis reduced the influence of subject/case identifiers with many
+seizures. For example, a subject/case identifier contributing many usable
+seizures could strongly influence a seizure-level analysis, whereas in the
+subject-average analysis it contributed one average trajectory, like every
+other subject/case identifier. The subject-average approach therefore provided
+a complementary check on whether the main findings reflected consistent
+subject-level patterns rather than being driven mainly by subjects with larger
+numbers of seizures.
+
+Averaging across seizures reduces
+within-subject seizure variability and may hide seizure-specific preictal
+effects. For this reason, the thesis reports the seizure-level analysis as the
+primary analysis and uses the subject-average analysis to assess robustness at
+the subject/case level.
+
+\section{Outcome Variables and Experimental Factors}
+\label{sec:outcome-variables-experimental-factors}
+
+The statistical analysis was organized around graph-level outcome variables and
+a fixed set of experimental factors. Each outcome variable represented one
+graph-theoretical feature extracted from a functional connectivity network.
+The experimental factors described how each network was generated: the temporal
+window, frequency band, and connectivity method.
+
+The outcome variables analyzed in this thesis were the graph metrics described
+in \cref{sec:graph-theoretical-metrics}.
+
+Although graph density was computed and retained as a diagnostic variable, it
+was not treated as a primary statistical outcome. This is because the graph
+construction procedure applied a proportional threshold targeting a fixed
+density. Therefore, density mainly served as a quality-control measure
+confirming the realized number of retained edges after thresholding.
+
+The statistical tests therefore evaluated whether graph metrics changed from
+Baseline to the preictal period and whether there was evidence of progressive
+change within the preictal interval.
+
+The second experimental dimension was frequency band. The analysis was
+performed separately for the six frequency bands used throughout the pipeline:
+delta, theta, alpha1, alpha2, beta1, and beta2. This band structure follows the
+pre-seizure graph-theoretical analysis of Vecchio et al., who analyzed
+connectivity separately across the same frequency ranges \cite{Vecchio2016}.
+The bands were not pooled in the statistical models because seizure-related
+network organization may differ across frequency ranges, and combining bands
+could obscure frequency-specific effects \cite{Ponten2007,Lanzone2022}.
+
+The third experimental dimension was connectivity method. The analysis was
+performed separately for coherence, wPLI, and AEC networks.
+Separate statistical testing by method allowed to evaluate whether
+observed window effects were specific to a particular definition of functional
+connectivity.
+
+For each combination of graph metric, connectivity method, and frequency band,
+a separate statistical analysis was performed. Since the final analysis
+included \num{8} graph metrics, \num{3} connectivity methods, and \num{6}
+frequency bands, this produced \num{144} metric--method--band combinations. Each combination was analyzed independently
+across temporal windows. This design made it possible to identify which graph
+properties, connectivity definitions, and frequency bands showed evidence of
+preictal change.
+
+The statistical models did not treat individual epochs, channels, graph
+metrics, frequency bands, or connectivity methods as independent biological
+samples. Instead, the unit of repeated measurement was defined at the seizure
+level for the primary analysis and at the subject/case level for the
+sensitivity analysis. This distinction was important because the large number
+of derived graph features does not imply an equally large number of independent
+subjects or seizures.
+
+\section{Omnibus Testing Across Temporal Windows}
+\label{sec:omnibus-testing-temporal-windows}
+
+The first statistical question was whether each graph metric showed an overall
+effect of temporal window. This was tested using an omnibus window-effect test
+for each graph metric, connectivity method, and frequency band combination.
+
+The purpose of the omnibus test was to determine whether there was evidence of
+any difference across the four temporal windows, without first specifying which
+preictal window differed from Baseline. This step was important because the
+analysis involved many graph metrics, connectivity methods, and frequency
+bands. Planned pairwise comparisons were therefore interpreted mainly when the
+corresponding omnibus test indicated a significant window effect after
+multiple-comparison correction.
+
+For the primary seizure-level analysis, the omnibus test was performed using a
+linear mixed-effects model. This modelling framework was selected because it is
+appropriate for repeated-measures and grouped data, allowing temporal-window
+effects to be estimated while accounting for the non-independence of seizures
+within subject/case identifiers \cite{Laird1982,Pinheiro2000}. For each metric--method--band
+combination, temporal window was included as a categorical fixed effect:
+
+\[
+    y_{s,w}
+    =
+    \beta_0
+    +
+    \beta_w
+    +
+    u_{\mathrm{subject}}
+    +
+    u_{\mathrm{seizure}}
+    +
+    \varepsilon_{s,w},
+\]
+
+where $y_{s,w}$ is the graph metric value for seizure $s$ in window $w$,
+$\beta_0$ is the intercept, $\beta_w$ represents the fixed effect of temporal
+window, $u_{\mathrm{subject}}$ accounts for grouping by subject/case identifier,
+$u_{\mathrm{seizure}}$ accounts for repeated measurements within seizure, and
+$\varepsilon_{s,w}$ is the residual error term.
+
+Baseline was used as the reference window in the mixed model. The omnibus
+window effect was then evaluated using a Wald chi-square test of the window
+terms \cite{Wald1943}. This tested whether the temporal window coefficients were jointly
+different from zero. A significant result indicated that the graph metric
+varied across Baseline, T0, T1, and T2 for the corresponding connectivity
+method and frequency band.
+
+When the mixed-effects model could not be estimated, the pipeline attempted a
+repeated-measures fallback analysis. If the Pingouin statistical package was
+available, a one-way repeated-measures ANOVA was attempted; otherwise, a manual
+one-way repeated-measures ANOVA was available as a secondary fallback
+\cite{Girden1992,Vallat2018}. This fallback preserved the within-unit
+repeated-measures structure, although it did not explicitly model the nesting
+of seizures within subject/case identifiers. Cases in which neither the
+mixed-effects model nor the fallback analysis produced a valid test statistic
+were marked as non-estimable and excluded from inferential interpretation.
+
+The same omnibus testing logic was also applied to the subject-average
+sensitivity analysis. In that case, the repeated-measures unit was the
+subject/case identifier rather than the seizure. Each subject/case identifier
+contributed one average value per window for a given metric--method--band
+combination. The subject-average omnibus model therefore tested whether the
+average subject-level trajectory differed across Baseline, T0, T1, and T2.
+
+For each omnibus test, the pipeline recorded the number of complete repeated
+observations, the number of contributing subject/case identifiers, the model
+type, the test statistic, degrees of freedom where applicable, the uncorrected
+$p$-value, the FDR-corrected $p$-value, and any fallback or skip reason. Tests
+were skipped when the number of complete repeated observations was below the
+predefined minimum required for analysis.
+
+\section{Post-hoc Baseline-vs-Preictal Comparisons}
+\label{sec:posthoc-baseline-preictal-comparisons}
+
+After the omnibus temporal-window tests, planned post-hoc comparisons were
+performed to identify which preictal windows differed from the interictal
+baseline condition. These comparisons were defined a priori because the central
+research question of the thesis concerned whether graph-theoretical network
+features changed before seizure onset relative to Baseline.
+
+For each graph metric, connectivity method, and frequency band combination,
+three paired Baseline-vs-preictal contrasts were tested: Baseline vs. T0,
+Baseline vs. T1,
+Baseline vs. T2.
+
+These contrasts compared the interictal reference window with each of the
+three consecutive preictal windows. T0 represented the earliest preictal
+window, T1 the middle preictal window, and T2 the window closest to seizure
+onset. This design allowed the analysis to evaluate whether a metric differed
+from Baseline at any specific preictal interval.
+
+For each paired contrast, the primary post-hoc test was a paired-samples
+$t$-test. If $x_{\mathrm{Baseline},s}$ denotes the baseline value for seizure
+$s$ and $x_{\mathrm{Preictal},s}$ denotes the corresponding preictal value, the
+paired difference was defined as
+
+\[
+    d_s =
+    x_{\mathrm{Preictal},s}
+    -
+    x_{\mathrm{Baseline},s}.
+\]
+
+The paired $t$-test evaluated whether the mean of these within-seizure
+differences differed from zero. A positive mean difference indicated that the
+metric was higher in the preictal window than in Baseline, whereas a negative
+mean difference indicated that the metric was lower in the preictal window.
+
+For each contrast, the analysis recorded the number of paired observations, the
+number of contributing subject/case identifiers, the Baseline mean, the
+comparison-window mean, the mean difference, the $t$ statistic, degrees of
+freedom, the uncorrected $p$-value, and the FDR-corrected $p$-value. 
+Cohen's $d_z$ was also computed as an effect-size measure for paired data
+\cite{Lakens2013}:
+
+\[
+    d_z =
+    \frac{\bar{d}}{s_d},
+\]
+
+where $\bar{d}$ is the mean paired difference and $s_d$ is the standard
+deviation of the paired differences.
+
+As a non-parametric sensitivity check, a Wilcoxon signed-rank test was also
+computed for each paired contrast when possible \cite{Wilcoxon1945}. The
+Wilcoxon signed-rank test does not require the paired differences to be normally
+distributed, although its standard interpretation assumes that the distribution
+of paired differences is approximately symmetric. Therefore, it provided an
+additional check on whether the paired comparison was robust to the normality
+assumption of the paired $t$-test. Both the paired $t$-test and Wilcoxon test
+results were retained in the statistical output. 
+Both the paired $t$-test and Wilcoxon test results were retained
+in the statistical output.
+
+The same planned post-hoc contrasts were repeated for the subject-average
+sensitivity analysis. In that analysis, the paired observations were
+subject/case-level average values rather than individual seizure-level values.
+Thus, each subject/case identifier contributed at most one paired value to each
+Baseline-vs-preictal contrast.
+
+Post-hoc comparisons were interpreted cautiously because a large number of
+contrasts were tested across graph metrics, connectivity methods, and frequency
+bands. In the final interpretation, post-hoc results were considered most
+meaningful when the corresponding omnibus temporal-window effect was
+significant after Benjamini--Hochberg FDR correction. This rule reduced the risk
+of over-interpreting isolated pairwise differences that were not supported by
+an overall window effect.
+
+\section{Preictal Trend Analysis}
+\label{sec:preictal-trend-analysis}
+
+In addition to comparing each preictal window with Baseline, the statistical
+pipeline tested whether graph metrics changed progressively during the
+preictal period itself. This analysis used only the three preictal windows T0,
+T1, and T2. Baseline was not included because the purpose of this test was to
+evaluate directional change as seizure onset approached, rather than to compare
+the preictal period with the interictal reference condition.
+
+The three preictal windows were represented by their midpoint times relative to
+seizure onset. T0 was assigned a time of \(-7.5\) minutes, T1 a time of
+\(-4.5\) minutes, and T2 a time of \(-1.5\) minutes. These values correspond to
+the centers of the three consecutive three-minute preictal windows. A positive
+slope therefore indicates that the graph metric increased as the recording
+approached seizure onset, whereas a negative slope indicates that the metric
+decreased across the preictal period.
+
+For each graph metric, connectivity method, and frequency band combination, the
+primary preictal trend analysis used a linear mixed-effects model when
+available. The model can be written as
+
+\[
+    y_{s,t}
+    =
+    \beta_0
+    +
+    \beta_1 t
+    +
+    u_{\mathrm{subject}}
+    +
+    u_{\mathrm{seizure}}
+    +
+    \varepsilon_{s,t},
+\]
+
+where $y_{s,t}$ is the graph metric value for seizure $s$ at preictal time
+$t$, $\beta_0$ is the intercept, $\beta_1$ is the fixed slope across preictal
+time, $u_{\mathrm{subject}}$ accounts for subject/case-level grouping,
+$u_{\mathrm{seizure}}$ accounts for repeated measurements within seizure, and
+$\varepsilon_{s,t}$ is the residual error term.
+
+The main parameter of interest was the slope coefficient $\beta_1$. This
+coefficient describes the average change in the graph metric per minute during
+the preictal interval. Because time was coded in minutes relative to seizure
+onset, the sign of the slope must be interpreted with the direction of time in
+mind. A positive slope means that the metric increased from T0 toward T2, while
+a negative slope means that the metric decreased as seizure onset approached.
+
+Only seizures with complete T0, T1, and T2 values were included in the
+seizure-level preictal trend analysis. This ensured that the trend was
+estimated from within-seizure trajectories across all three preictal windows.
+The same complete-case logic was applied to each metric--method--band
+combination separately.
+
+When the mixed-effects model could not be used, the pipeline applied a fallback
+trend analysis. In the fallback approach, a linear slope was first estimated
+separately for each seizure across T0, T1, and T2. These seizure-level slopes
+were then tested against zero using a one-sample $t$-test. This preserved the
+interpretation of the trend as a within-seizure temporal change, although it
+did not explicitly model subject/case-level grouping.
+
+The trend analysis was intended to complement the omnibus and post-hoc tests.
+The omnibus test assessed whether any difference existed across Baseline, T0,
+T1, and T2. The post-hoc tests identified which preictal windows differed from
+Baseline. The trend test asked a different question: whether the metric changed
+systematically within the preictal period itself. Therefore, a metric could
+show a Baseline-vs-preictal difference without a monotonic T0--T2 trend, or it
+could show a preictal trend without a strong Baseline contrast.
+
+For each trend test, the statistical output recorded the number of complete
+preictal seizures, the number of contributing subject/case identifiers, the
+model type, the estimated slope per minute, the test statistic, the
+uncorrected $p$-value, the FDR-corrected $p$-value, and any fallback or skip
+reason. As with the other statistical outputs, trend results were interpreted
+after correction for multiple comparisons.
+
+\section{Multiple-Comparison Correction}
+\label{sec:multiple-comparison-correction}
+
+Because graph metrics were tested separately across connectivity methods and
+frequency bands, the analysis involved many statistical tests. To reduce the
+risk of false-positive interpretation, Benjamini--Hochberg false discovery rate
+(FDR) correction was applied \cite{Benjamini1995}. FDR correction controls the
+expected proportion of false discoveries among results declared significant,
+which is appropriate for an exploratory analysis with many related tests.
+
+Correction was applied separately within each output family: seizure-level
+omnibus tests, seizure-level post-hoc tests, seizure-level preictal trend
+tests, subject-average omnibus tests, and subject-average post-hoc tests. Thus,
+correction was performed across tests belonging to the same statistical family,
+rather than separately for each subject/case identifier or each individual graph
+metric.
+
+For post-hoc analyses, paired $t$-test $p$-values and Wilcoxon signed-rank
+$p$-values were corrected separately. A corrected significance threshold of
+$\alpha = 0.05$ was used. Uncorrected $p$-values were retained for
+transparency, but interpretation focused on FDR-corrected values. Planned
+post-hoc comparisons were interpreted primarily when the corresponding omnibus
+window-effect test also survived FDR correction.
+
+\section{Validation and Output of the Statistical Pipeline}
+\label{sec:statistical-pipeline-validation-output}
+
+The statistical pipeline transformed the graph feature table into a long-format
+dataset suitable for repeated-measures testing. The input contained
+\num{11376} graph-level rows and \num{8} analyzed graph metrics, resulting in
+\num{91008} long-format observations. Each observation retained its
+subject/case identifier, seizure identifier, temporal window, frequency band,
+connectivity method, graph metric, and value.
+
+The final dataset included \num{24} subject/case identifiers and \num{159}
+usable seizures. Of these, \num{155} seizures had complete values across
+Baseline, T0, T1, and T2 and were used for Baseline-inclusive seizure-level
+omnibus testing. All \num{159} seizures had complete T0, T1, and T2 values and
+were available for the preictal trend analysis.
+
+The analysis covered \num{144} metric--method--band combinations
+(\num{8} graph metrics $\times$ \num{3} connectivity methods $\times$
+\num{6} frequency bands). At the seizure level, this produced \num{144}
+omnibus tests, \num{432} planned Baseline-vs-preictal post-hoc contrasts, and
+\num{144} preictal trend tests. The subject-average sensitivity analysis
+produced \num{13824} rows, \num{112} omnibus tests with valid model output, and
+\num{432} post-hoc contrasts.
+
+The output tables included descriptive summaries, seizure-level omnibus tests,
+seizure-level post-hoc comparisons, seizure-level preictal trends,
+subject-average summaries, subject-average omnibus tests, and subject-average
+post-hoc comparisons. Inferential outputs retained the model type, test
+statistic, uncorrected and FDR-corrected $p$-values, effect-size information
+where applicable, and diagnostic fields such as fallback or skip reasons.
+
+These validation outputs confirmed that the dataset structure was preserved
+from graph extraction to statistical testing and provided the basis for the
+results chapter.

@@ -1,0 +1,167 @@
+% !TEX program = xelatex
+\documentclass[a4paper,singleside,12pt]{report}
+% \documentclass[a4paper,twoside,12pt]{report} % For printed double-sided version
+
+% University of Bologna thesis style.
+% Compile with XeLaTeX because ai_bo_thesis uses fontspec.
+\usepackage{ai_bo_thesis}
+
+\usepackage[english]{babel}
+
+% Main font
+\setmainfont{Times New Roman}
+
+% Mathematics and symbols
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+
+% Figures
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, decorations.pathreplacing, calc}
+% Units and numbers
+\usepackage{siunitx}
+
+% Text and URLs
+\usepackage{xurl}
+\usepackage{csquotes}
+
+% Algorithms / pseudocode, if needed later
+% \usepackage{algorithm}
+% \usepackage{algpseudocode}
+
+% Bibliography
+\usepackage[
+    backend=biber,
+    style=trad-plain,
+    sorting=none,
+    giveninits=true
+]{biblatex}
+\addbibresource{bibliography/references.bib}
+
+% Figure path
+\graphicspath{{figures/}}
+
+% Hyperref should usually be loaded near the end of the preamble
+\usepackage[hidelinks]{hyperref}
+
+% Clever references after hyperref, optional but useful
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\begin{document}
+
+    % ----------------------------------------------------------------------
+    % Frontispiece metadata
+    % ----------------------------------------------------------------------
+
+    \title{Graph-Theoretic Analysis of Scalp EEG Functional Connectivity for Epileptic Seizure Prediction}
+
+    \topic{Cognition and Neuroscience}
+
+    \candidate{Leila Sadakbayeva}
+
+    % Confirm final supervisor / co-supervisor roles before submission.
+    \supervisor{Prof.~Francesca Starita}
+    \cosupervisor{& Prof.~Saverio Giallorenzo}
+
+    \academicyear{2025-2026}
+
+    % Update according to the official graduation session.
+    \session{ to be confirmed}
+
+    \frontispiece
+
+    % ----------------------------------------------------------------------
+    % Abstract
+    % ----------------------------------------------------------------------
+
+    \chapter*{Abstract}
+
+    Epileptic seizure prediction is a challenging problem in biomedical signal
+    processing, with potential relevance for clinical monitoring and patient
+    safety. This thesis investigates whether pre-ictal changes in brain network
+    topology can be detected from scalp electroencephalography (EEG) recordings
+    using functional connectivity and graph-theoretic analysis.
+
+    The proposed pipeline is evaluated on the CHB-MIT scalp EEG dataset. EEG
+    recordings are segmented into baseline and pre-ictal windows preceding
+    seizure onset. For each segment, functional connectivity matrices are
+    computed across multiple frequency bands using coherence, weighted Phase Lag
+    Index, and amplitude envelope correlation. These matrices are interpreted as
+    weighted brain networks from which graph metrics such as clustering
+    coefficient, global efficiency, characteristic path length, small-worldness,
+    modularity, betweenness centrality, and assortativity are extracted.
+
+    An initial exploratory analysis on subject chb01 shows that delta-band wPLI
+    mean betweenness centrality decreases consistently before seizures and
+    survives false discovery rate correction in a repeated-measures ANOVA. Since
+    this result is obtained from a single-subject pilot analysis, it is treated
+    as preliminary and used to guide further validation on additional subjects
+    and exploratory prediction experiments.
+
+    \cleardoublepage
+
+    % ----------------------------------------------------------------------
+    % Tables of contents
+    % ----------------------------------------------------------------------
+
+    \toc
+    \figstoc
+    \tablestoc
+
+    \begintext
+
+    % ----------------------------------------------------------------------
+    % Main chapters
+    % ----------------------------------------------------------------------
+
+    % \input{chapters/01_introduction}
+
+    % \input{chapters/02_background_state_of_art}
+
+    \input{chapters/03_dataset_preprocessing}
+
+    \input{chapters/04_connectivity_graph_features}
+
+    \input{chapters/05_statistical_anlysis}
+
+    \input{chapters/06_experimental_results}
+
+    % \input{chapters/07_discussion}
+
+    % \input{chapters/08_conclusions_future_work}
+
+    % ----------------------------------------------------------------------
+    % Appendices
+    % ----------------------------------------------------------------------
+
+    \appendix
+
+    \input{appendices/appendix_reproducibility}
+
+    % ----------------------------------------------------------------------
+    % Bibliography
+    % ----------------------------------------------------------------------
+
+    \printbibliography[heading=bibintoc]
+
+    % ----------------------------------------------------------------------
+    % Acknowledgements
+    % ----------------------------------------------------------------------
+
+    \acknowledgements
+
+    I would like to thank my supervisors for their guidance and support
+    throughout this thesis. I am also grateful to my family, friends, and
+    colleagues for their encouragement during the development of this work.
+
+\end{document}

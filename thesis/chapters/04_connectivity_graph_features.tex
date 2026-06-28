@@ -1,0 +1,632 @@
+\chapter{Connectivity and Graph Features}
+\label{chap:connectivity-graph-features}
+
+\section{Overview of Network Construction}
+\label{sec:functional-network-construction-overview}
+
+After preprocessing and temporal segmentation, each seizure-related EEG window
+was represented as a three-dimensional array containing \num{90}
+non-overlapping epochs, \num{22} bipolar EEG channels, and \num{512} samples per
+epoch. These segmented EEG windows formed the input to the functional
+connectivity pipeline. The purpose of this stage was to transform each
+time-windowed EEG segment into a set of functional brain networks that could be
+summarized using graph-theoretical measures.
+
+In this thesis, a functional brain network is defined as a weighted graph
+constructed from pairwise statistical relationships between EEG channels. Each
+of the \num{22} bipolar channels corresponds to one graph node. The edges
+between nodes represent functional connectivity values estimated between pairs
+of channels. Therefore, for each seizure window, frequency band, and
+connectivity method, the pipeline produced one square connectivity matrix of
+size \num{22} $\times$ \num{22}. Each entry of this matrix represents the
+estimated functional coupling between two EEG channels.
+
+Connectivity was computed separately for each temporal window, frequency band,
+and connectivity method. The four temporal windows were Baseline, T0, T1, and
+T2, as defined in \cref{sec:temporal-window-definition}. The six analyzed
+frequency bands were delta, theta, alpha1, alpha2, beta1, and beta2, as defined
+in \cref{sec:frequency-band-decomposition}. For each saved EEG segment, three
+connectivity methods were applied: magnitude-squared coherence, weighted
+phase-lag index, and amplitude envelope correlation. Consequently, each saved
+window produced 18 functional connectivity matrices.
+
+The complete network construction process can therefore be summarized as
+follows. First, each segmented EEG window was decomposed according to the
+predefined frequency bands. Second, functional connectivity was estimated
+between all pairs of channels using each connectivity method. Third, the
+resulting connectivity matrices were validated to ensure that they had the
+expected \num{22} $\times$ \num{22} shape, contained only finite values, and were
+symmetric. Finally, each matrix was interpreted as a weighted undirected network
+and passed to the graph feature extraction stage.
+
+This organization allowed the analysis to examine whether network properties
+changed across time windows before seizure onset, whether these changes were
+frequency-specific, and whether they depended on the connectivity method used
+to define the network. It also preserved the link between each graph, the
+corresponding subject/case identifier, seizure, temporal window, frequency
+band, and connectivity method, which was essential for the later statistical
+analysis.
+
+\section{Functional Connectivity Estimation}
+\label{sec:functional-connectivity-estimation}
+
+Functional connectivity was estimated between all pairs of EEG channels for
+each saved temporal window and frequency band. Three complementary
+connectivity measures were used: magnitude-squared coherence, weighted
+phase-lag index (wPLI), and amplitude envelope correlation (AEC). These
+methods were selected because they capture different aspects of statistical
+dependence between EEG signals: coherence reflects frequency-specific linear
+coupling, wPLI emphasizes consistent non-zero phase-lag synchronization, and
+AEC captures co-fluctuations in band-limited amplitude envelopes
+\cite{Friston1994,Vinck2011,Bruns2000}.
+
+The use of connectivity-derived networks is consistent with previous epilepsy
+studies that model EEG or intracranial EEG activity as functional graphs, where
+nodes represent recording sites and edges represent pairwise functional
+coupling \cite{Vecchio2016,Lanzone2022}.
+
+For each segmented EEG window, connectivity was computed separately for the
+six predefined frequency bands described in
+\cref{sec:frequency-band-decomposition}. The output of each method was a
+symmetric \num{22} $\times$ \num{22} matrix, where rows and columns corresponded
+to the fixed bipolar EEG channels. The diagonal entries were set to one before
+saving, since each channel is perfectly connected with itself by definition;
+self-connections were later removed before graph-theoretical analysis.
+
+\subsection{Coherence}
+\label{subsec:coherence}
+
+Magnitude-squared coherence was used to estimate frequency-specific linear
+coupling between pairs of EEG channels \cite{Pfurtscheller1999,Vecchio2016}. For two signals $x_i(t)$ and $x_j(t)$,
+coherence at frequency $f$ can be expressed as
+
+\[
+    C_{ij}(f) =
+    \frac{|S_{ij}(f)|^2}{S_{ii}(f)S_{jj}(f)},
+\]
+
+where $S_{ij}(f)$ is the cross-spectral density between channels $i$ and $j$,
+and $S_{ii}(f)$ and $S_{jj}(f)$ are the corresponding auto-spectral densities.
+The value of coherence lies between zero and one, with higher values indicating
+stronger linear coupling at the given frequency.
+
+In the implemented pipeline, cross-spectral and auto-spectral densities were
+estimated using Welch-based spectral estimation. For each \SI{2}{\second}
+epoch, the spectral estimates were computed using a segment length of
+\num{256} samples and an overlap of \num{128} samples. Coherence values were
+then averaged across all epochs and across all frequency bins belonging to the
+selected frequency band. This produced one coherence value for each channel
+pair, frequency band, and temporal window.
+
+The resulting coherence matrices were clipped to the interval $[0,1]$ and
+validated before being saved. Because coherence is a symmetric pairwise measure,
+the resulting matrices were symmetric by construction and represented weighted
+undirected functional networks.
+
+\subsection{Weighted Phase-Lag Index}
+\label{subsec:wpli}
+
+The weighted phase-lag index was used to estimate phase-based synchronization
+while reducing the influence of zero-lag coupling \cite{Vinck2011,Lanzone2022}. This is important in scalp
+EEG, where instantaneous coupling can arise from volume conduction, common
+reference effects, or shared sources. Unlike coherence, which can be influenced
+by both zero-lag and non-zero-lag relationships, wPLI emphasizes consistent
+phase differences with a non-zero imaginary component.
+
+Before computing wPLI, the EEG epochs were band-pass filtered within the
+frequency band of interest using a fourth-order Butterworth filter. The analytic
+signal was then obtained using the Hilbert transform. For a pair of analytic
+signals, the cross-spectrum-like quantity was computed and its imaginary part
+was used to estimate wPLI:
+
+\[
+    \mathrm{wPLI}_{ij}
+    =
+    \frac{
+        \left|
+        \mathbb{E}\left[\operatorname{Im}(Z_{ij})\right]
+        \right|
+    }{
+        \mathbb{E}\left[
+        \left|\operatorname{Im}(Z_{ij})\right|
+        \right]
+    },
+\]
+
+where $Z_{ij}$ denotes the product of the analytic signal from channel $i$ and
+the complex conjugate of the analytic signal from channel $j$, and
+$\operatorname{Im}(\cdot)$ denotes the imaginary part. The expectation was
+computed across epochs and time samples.
+
+The resulting wPLI values range from zero to one. Values close to zero indicate
+weak or inconsistent phase-lagged coupling, whereas values closer to one
+indicate more consistent non-zero phase-lag synchronization between two
+channels. As with coherence, the output was a symmetric \num{22} $\times$
+\num{22} connectivity matrix for each temporal window and frequency band.
+
+\subsection{Amplitude Envelope Correlation}
+\label{subsec:aec}
+
+Amplitude envelope correlation was used to estimate coupling between
+band-limited amplitude fluctuations. While coherence and wPLI focus on spectral
+or phase-based relationships, AEC captures whether the amplitude envelopes of
+two EEG channels fluctuate together over time within a given frequency band \cite{Bruns2000,Hipp2012}.
+
+For each frequency band, the EEG epochs were first band-pass filtered using the
+same fourth-order Butterworth filtering procedure used for wPLI. The analytic
+signal was then computed with the Hilbert transform, and the amplitude envelope
+of each channel was obtained by taking the absolute value of the analytic
+signal. For channel $i$, the amplitude envelope can be written as
+
+\[
+    A_i(t) = |z_i(t)|,
+\]
+
+where $z_i(t)$ is the analytic signal of the band-limited EEG signal.
+
+For each epoch, Pearson correlation coefficients were computed between the
+amplitude envelopes of all channel pairs. The final AEC matrix for a given
+window and frequency band was obtained by averaging these epoch-level
+correlation matrices. Unlike coherence and wPLI, AEC values may be positive or
+negative, because they are based on correlation coefficients. Therefore, the
+values were clipped to the interval $[-1,1]$ before validation and saving.
+
+AEC provides a complementary view of functional connectivity because it is
+sensitive to co-fluctuations in signal amplitude rather than phase consistency
+alone. However, because no orthogonalization or source reconstruction was
+applied, AEC may still be influenced by zero-lag correlations and shared
+sensor-level activity. This limitation is considered when interpreting
+connectivity differences across temporal windows.
+
+\section{Adjacency Matrix Construction}
+\label{sec:adjacency-matrix-construction}
+
+After functional connectivity estimation, each temporal window, frequency band,
+and connectivity method was represented by a square adjacency matrix. These
+matrices provided the bridge between EEG signal analysis and graph-theoretical
+feature extraction. In this representation, EEG channels were treated as graph
+nodes and pairwise connectivity estimates were treated as weighted edges.
+
+For each saved EEG segment, the pipeline produced one adjacency matrix for each
+combination of frequency band and connectivity method. Since the analysis used
+\num{6} frequency bands and \num{3} connectivity methods, each temporal window
+produced \num{18} adjacency matrices. Each matrix had dimensions
+\num{22} $\times$ \num{22}, corresponding to the fixed \num{22}-channel bipolar
+montage described in \cref{subsec:channel-selection-montage-standardization}.
+
+\subsection{Weighted Matrices}
+\label{subsec:weighted-matrices}
+
+The connectivity matrices were treated as weighted adjacency matrices. For a
+given seizure, temporal window, frequency band, and connectivity method, the
+matrix can be written as
+
+\[
+    \mathbf{A} =
+    \begin{bmatrix}
+    A_{11} & A_{12} & \cdots & A_{1N} \\
+    A_{21} & A_{22} & \cdots & A_{2N} \\
+    \vdots & \vdots & \ddots & \vdots \\
+    A_{N1} & A_{N2} & \cdots & A_{NN}
+    \end{bmatrix},
+\]
+
+where $N = 22$ is the number of EEG channels. Each off-diagonal element
+$A_{ij}$ represents the estimated functional connectivity between channel $i$
+and channel $j$. Larger values indicate stronger estimated coupling between the
+corresponding pair of channels.
+
+All connectivity matrices were required to be square, finite, and symmetric
+before being accepted by the pipeline. Symmetry is expected because the
+connectivity measures used in this thesis are pairwise undirected measures:
+the coupling between channel $i$ and channel $j$ is the same as the coupling
+between channel $j$ and channel $i$. Therefore, each matrix represents an
+undirected weighted network.
+
+The diagonal entries of the connectivity matrices were set to one during
+connectivity estimation, since each channel is perfectly connected with itself.
+However, self-connections are not meaningful for graph-theoretical topology.
+Consequently, self-loops were removed before graph metrics were computed by
+setting the diagonal entries to zero in the graph construction stage.
+
+The range of matrix values depended on the connectivity method. Coherence and
+wPLI produced non-negative values in the interval $[0,1]$. AEC was based on
+correlation coefficients and could therefore produce values in the interval
+$[-1,1]$. Negative AEC values were retained when computing mean connectivity,
+but negative values were not used as topology weights during graph-metric
+calculation, as described in the graph feature extraction section.
+
+\subsection{Channel-to-Node Mapping}
+\label{subsec:channel-to-node-mapping}
+
+A fixed channel-to-node mapping was used for all adjacency matrices. This was
+necessary because graph metrics are only comparable across seizures and
+subjects if the same node index always refers to the same EEG derivation.
+The CHB-MIT dataset contains recordings with montage variability, and previous
+CHB-MIT studies have therefore restricted analysis to fixed channel sets in
+order to reduce heterogeneity across recordings \cite{Tsiouris2018}. In the
+present thesis, a stricter screening strategy was used: recordings were retained
+only when the complete predefined \num{22}-channel bipolar montage was
+available. This preserved a larger sensor-level network while ensuring that the
+node definitions remained identical across subjects, seizures, temporal
+windows, frequency bands, and connectivity methods.
+
+The channel order was inherited from the standardized preprocessing montage and
+was kept fixed during segmentation, connectivity estimation, and graph feature
+extraction. For readability, \cref{tab:channel-node-mapping} reports the
+mapping using one-based node numbering. Internally, the computational
+implementation used zero-based Python indices, but the ordering was identical.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{clcl}
+        \toprule
+        Node & Channel & Node & Channel \\
+        \midrule
+        1  & \texttt{FP1-F7}   & 12 & \texttt{P4-O2} \\
+        2  & \texttt{F7-T7}    & 13 & \texttt{FP2-F8} \\
+        3  & \texttt{T7-P7}    & 14 & \texttt{F8-T8} \\
+        4  & \texttt{P7-O1}    & 15 & \texttt{T8-P8} \\
+        5  & \texttt{FP1-F3}   & 16 & \texttt{P8-O2} \\
+        6  & \texttt{F3-C3}    & 17 & \texttt{FZ-CZ} \\
+        7  & \texttt{C3-P3}    & 18 & \texttt{CZ-PZ} \\
+        8  & \texttt{P3-O1}    & 19 & \texttt{P7-T7} \\
+        9  & \texttt{FP2-F4}   & 20 & \texttt{T7-FT9} \\
+        10 & \texttt{F4-C4}    & 21 & \texttt{FT9-FT10} \\
+        11 & \texttt{C4-P4}    & 22 & \texttt{FT10-T8} \\
+        \bottomrule
+    \end{tabular}
+    \caption{Fixed channel-to-node mapping used for all functional connectivity
+    matrices and graph-theoretical analyses.}
+    \label{tab:channel-node-mapping}
+\end{table}
+
+Because this mapping was fixed, the same matrix position always represented the
+same pair of bipolar EEG channels. For example, the value at position
+$(1,2)$ represented the connection between \texttt{FP1-F7} and \texttt{F7-T7}
+in every matrix, regardless of subject, seizure, window, frequency band, or
+connectivity method.
+
+\subsection{Frequency- and Window-Specific Networks}
+\label{subsec:frequency-window-specific-networks}
+
+The network construction procedure was repeated independently for each temporal
+window and frequency band. Therefore, the analysis did not produce a single
+network per seizure, but rather a structured collection of networks describing
+the same seizure from different temporal, spectral, and methodological
+perspectives.
+
+For each seizure, the possible temporal windows were Baseline, T0, T1, and T2.
+For each window, connectivity was computed in the delta, theta, alpha1,
+alpha2, beta1, and beta2 bands. For each frequency band, three connectivity
+methods were applied: coherence, wPLI, and AEC. A single adjacency matrix can
+therefore be identified by the tuple
+
+\[
+    (\text{subject},\ \text{seizure},\ \text{window},\ \text{band},\
+    \text{method}).
+\]
+
+This organization preserved the full experimental structure of the analysis.
+It allowed graph metrics to be compared across preictal windows, across
+frequency bands, and across connectivity methods while retaining the identity
+of the subject/case folder and seizure from which each network was derived.
+
+The resulting adjacency matrices were saved and subsequently passed to the
+graph feature extraction stage. At that stage, the matrices were cleaned,
+thresholded, converted into graph objects, and summarized using global
+network-level metrics.
+
+\section{Graph-Theoretical Metrics}
+\label{sec:graph-theoretical-metrics}
+
+Before computing topology-based graph metrics, each matrix was prepared in a
+standardized way. First, the matrix was symmetrized and the diagonal was set to
+zero, removing self-loops. For topology-based metrics, negative connectivity values were also set to zero.
+This was done because the graph metrics used in this thesis interpret edge
+weights as non-negative connection strengths. In particular, shortest-path
+metrics converted connection strength into distance, so negative weights could
+not be interpreted as valid positive distances in the same way as positive
+connectivity values \cite{Rubinov2010,Rubinov2011}. However, negative values
+were preserved when computing mean connectivity, so that the average
+connectivity measure still reflected the original signed connectivity values
+when applicable.
+
+A proportional threshold was then applied to the cleaned matrix. Specifically,
+the strongest positive edges were retained up to a target density of
+\SI{20}{\percent}. Proportional thresholding was used to impose the same
+intended graph density across subjects, seizures, temporal windows, frequency
+bands, and connectivity methods. This reduced the influence of weak connections
+that may be more susceptible to noise while making graph metrics more
+comparable across matrices \cite{VanWijk2010,Garrison2015,Adamovich2022}.
+
+The \SI{20}{\percent} density was selected a priori as a compromise between
+sparsity and network preservation. A lower threshold would retain fewer edges
+and could increase the risk of disconnected or unstable graphs, whereas a much
+higher threshold would retain more weak connections and reduce the effect of
+network sparsification. Since there is no universally accepted density threshold
+for EEG functional connectivity graphs, the threshold should be interpreted as a
+fixed methodological choice rather than an empirically optimal value
+\cite{Garrison2015,Adamovich2022}. If a matrix contained fewer positive edges
+than required by the target density, all available positive edges were retained
+and the realized density was lower than the target.
+
+In the resulting graph, nodes corresponded to EEG channels and edges
+corresponded to retained functional connectivity values. Edge weights
+represented connectivity strength. For metrics based on shortest paths,
+connectivity strength was converted into distance using the inverse of the
+edge weight, so that stronger functional connections corresponded to shorter
+graph distances.
+
+\subsection{Mean Connectivity}
+\label{subsec:mean-connectivity}
+
+Mean connectivity was computed directly from the original, unthresholded
+connectivity matrix after symmetrization and removal of self-connections. It was
+defined as the average of all off-diagonal upper-triangular matrix entries:
+
+\[
+    \bar{A}
+    =
+    \frac{1}{N(N-1)/2}
+    \sum_{i<j} A_{ij},
+\]
+
+where $N$ is the number of nodes and $A_{ij}$ is the connectivity value between
+channels $i$ and $j$.
+
+This metric describes the overall level of functional coupling in a given
+network \cite{Friston1994,Rubinov2010}. Unlike the topology-based graph metrics, mean connectivity was not
+computed after thresholding. This was done to preserve information about the
+average connectivity strength across all channel pairs. For AEC matrices,
+negative correlations could therefore contribute to the mean connectivity
+value.
+
+\subsection{Density}
+\label{subsec:density}
+
+Graph density describes the proportion of possible edges that are present in
+the thresholded graph \cite{Rubinov2010,VanWijk2010}.. For an undirected graph with $N$ nodes and $E$ retained
+edges, density is defined as
+
+\[
+    D =
+    \frac{E}{N(N-1)/2}.
+\]
+
+In this thesis, a proportional threshold targeting a density of
+\SI{20}{\percent} was applied before topology metrics were computed. Therefore,
+the density metric also served as a diagnostic measure confirming how many
+edges were retained after thresholding. In most cases, the realized density was
+expected to match the target density. If too few positive edges were available,
+the realized density could be lower.
+
+\subsection{Clustering Coefficient}
+\label{subsec:clustering-coefficient}
+
+The clustering coefficient measures the tendency of nodes to form locally
+interconnected groups \cite{Watts1998,Onnela2005,Rubinov2010}. In the context of EEG functional networks, a high
+clustering coefficient indicates that channels connected to the same channel
+also tend to be connected to each other, suggesting stronger local network
+organization.
+
+For each thresholded weighted graph, the average weighted clustering
+coefficient was computed across all nodes:
+
+\[
+    C =
+    \frac{1}{N}
+    \sum_{i=1}^{N} C_i,
+\]
+
+where $C_i$ is the weighted clustering coefficient of node $i$. The use of
+weighted clustering allowed the metric to account not only for the presence of
+connections but also for their connectivity strength.
+
+\subsection{Global Efficiency}
+\label{subsec:global-efficiency}
+
+Global efficiency measures how efficiently information can be exchanged across
+the whole network \cite{Latora2001,Rubinov2010}. It is based on the inverse of the shortest-path distance
+between all pairs of nodes:
+
+\[
+    E_{\mathrm{glob}}
+    =
+    \frac{1}{N(N-1)}
+    \sum_{i \neq j}
+    \frac{1}{d_{ij}},
+\]
+
+where $d_{ij}$ is the shortest-path distance between nodes $i$ and $j$.
+
+In this thesis, shortest-path distances were computed using inverse
+connectivity strength as the edge distance. Therefore, stronger functional
+connections corresponded to shorter graph distances. If two nodes were
+disconnected, their contribution to global efficiency was set to zero. Higher
+global efficiency indicates that the network has shorter paths between nodes
+and may therefore support more integrated communication across the EEG channel
+network.
+
+\subsection{Characteristic Path Length}
+\label{subsec:characteristic-path-length}
+
+Characteristic path length measures the average shortest-path distance between
+nodes in a network \cite{Watts1998,Rubinov2010}. It provides a complementary view to global efficiency:
+whereas global efficiency increases when nodes are more easily reachable,
+characteristic path length decreases when the network becomes more integrated.
+
+For a connected graph, characteristic path length is defined as
+
+\[
+    L =
+    \frac{1}{N(N-1)}
+    \sum_{i \neq j}
+    d_{ij},
+\]
+
+where $d_{ij}$ is the shortest-path distance between nodes $i$ and $j$.
+
+Because thresholding may produce disconnected graphs, characteristic path
+length was computed on the largest connected component of each graph. This
+avoids undefined path lengths between disconnected node pairs. As with global
+efficiency, edge distances were defined as the inverse of connectivity strength.
+
+\subsection{Small-Worldness}
+\label{subsec:small-worldness}
+
+Small-worldness quantifies whether a network combines high local clustering
+with short global path lengths compared with random reference networks \cite{Watts1998,Humphries2008,Rubinov2010}. This is
+relevant for brain network analysis because many functional brain networks have
+been described as balancing local specialization and global integration.
+
+Small-worldness was computed as
+
+\[
+    \sigma =
+    \frac{C / C_{\mathrm{rand}}}{L / L_{\mathrm{rand}}},
+\]
+
+where $C$ and $L$ are the clustering coefficient and characteristic path length
+of the observed graph, and $C_{\mathrm{rand}}$ and $L_{\mathrm{rand}}$ are the
+corresponding mean values from randomized comparison graphs.
+
+For each observed graph, random comparison graphs were generated by preserving
+the observed degree sequence through double-edge swaps when possible. The
+observed edge-weight distribution was then shuffled onto each randomized
+topology. In the final pipeline, \num{20} random graphs were used for each
+small-worldness estimate, with a fixed random seed to ensure reproducibility.
+Values greater than one indicate stronger small-world organization relative to
+the random comparison graphs.
+
+\subsection{Modularity}
+\label{subsec:modularity}
+
+Modularity measures the extent to which a network can be divided into
+communities or modules \cite{Newman2006,Rubinov2010}. A module is a group of nodes that are more strongly
+connected to each other than to the rest of the network. In EEG functional
+networks, higher modularity may indicate stronger segregation of the network
+into relatively independent channel groups.
+
+Modularity can be written conceptually as
+
+\[
+    Q =
+    \frac{1}{2m}
+    \sum_{i,j}
+    \left[
+    A_{ij}
+    -
+    \frac{k_i k_j}{2m}
+    \right]
+    \delta(c_i,c_j),
+\]
+
+where $A_{ij}$ is the edge weight between nodes $i$ and $j$, $k_i$ and $k_j$
+are node strengths or degrees, $m$ is the total edge weight, and
+$\delta(c_i,c_j)$ indicates whether nodes $i$ and $j$ belong to the same
+community.
+
+In the implemented pipeline, modularity was computed using weighted community
+detection. When available, the Louvain community detection method was used;
+otherwise, a greedy modularity-based method was used as a fallback \cite{Blondel2008}. The same
+random seed was used to make the modularity calculation reproducible when
+stochastic community detection was applied.
+
+\subsection{Mean Betweenness Centrality}
+\label{subsec:mean-betweenness-centrality}
+
+Betweenness centrality measures how often a node lies on shortest paths between
+other nodes \cite{Freeman1977,Rubinov2010}. Nodes with high betweenness may act as bridges between different
+parts of the network. Betweenness centrality has also been used in EEG connectivity studies of drug-resistant epilepsy and neuromodulation \cite{Lanzone2022}. 
+In the present analysis, betweenness centrality was
+computed for each node and then averaged across all nodes to obtain a single
+network-level metric.
+
+For a node $v$, betweenness centrality is defined as
+
+\[
+    BC(v)
+    =
+    \sum_{s \neq v \neq t}
+    \frac{\sigma_{st}(v)}{\sigma_{st}},
+\]
+
+where $\sigma_{st}$ is the number of shortest paths between nodes $s$ and $t$,
+and $\sigma_{st}(v)$ is the number of those paths that pass through node $v$.
+
+Shortest paths were computed using inverse connectivity strength as distance,
+so stronger edges corresponded to shorter paths. The mean betweenness
+centrality was then computed as
+
+\[
+    \overline{BC}
+    =
+    \frac{1}{N}
+    \sum_{v=1}^{N} BC(v).
+\]
+
+This produced a global summary of how strongly the network relied on central
+bridge-like nodes.
+
+\subsection{Assortativity}
+\label{subsec:assortativity}
+
+Assortativity measures the tendency of nodes to connect to other nodes with
+similar degree \cite{Newman2002,Rubinov2010}. A positive assortativity coefficient indicates that highly
+connected nodes tend to connect to other highly connected nodes, whereas a
+negative coefficient indicates that highly connected nodes tend to connect to
+less connected nodes.
+
+Degree assortativity was computed for each thresholded graph. The coefficient
+can be interpreted as a correlation between the degrees of nodes at either end
+of an edge. Values close to one indicate assortative mixing, values close to
+zero indicate no clear degree-based mixing pattern, and values below zero
+indicate disassortative organization.
+
+In the context of this thesis, assortativity was included as a global measure
+of network organization complementary to efficiency, clustering, and modularity.
+When assortativity was undefined, for example because the graph structure did
+not contain sufficient degree variability, the value was recorded as missing.
+
+\section{Output of the Connectivity and Graph Feature Pipeline}
+\label{sec:connectivity-graph-pipeline-output}
+
+The connectivity and graph feature pipeline produced the network-level dataset
+used for statistical analysis. The final segmentation stage contained
+\num{632} saved temporal windows. Each window was analyzed across \num{6}
+frequency bands and \num{3} connectivity methods, giving
+
+\[
+    632 \times 6 \times 3 = \num{11376}
+\]
+
+expected connectivity matrices. No matrices failed validation, so the final
+connectivity output consisted of \num{11376} valid \num{22} $\times$ \num{22}
+matrices.
+
+Each matrix was then summarized by graph-theoretical features. The pipeline
+retained the subject/case identifier, seizure identifier, temporal window,
+frequency band, and connectivity method for every matrix, so each graph feature
+row remained traceable to its source EEG segment and connectivity definition.
+
+The graph feature extraction stage produced one row per connectivity matrix,
+resulting in \num{11376} graph-level observations. The extracted variables were
+mean connectivity, density, clustering coefficient, global efficiency,
+characteristic path length, small-worldness, modularity, mean betweenness
+centrality, and assortativity. Density was retained as a diagnostic measure,
+whereas the remaining graph metrics were used as outcome variables in the
+statistical analysis.
+
+Additional diagnostic variables were stored for quality control and
+reproducibility. These included the threshold density, realized edge count,
+realized graph density, number of connected components, size of the largest
+connected component, number of random graphs used for small-worldness
+estimation, random seed, and software version information.
+
+Thus, the final output of this stage was a seizure-window-level graph feature
+dataset. Each row represented one functional network defined by a specific
+subject/case identifier, seizure, temporal window, frequency band, and
+connectivity method. This dataset provided the input for the statistical
+analysis in the following chapter, where graph metrics were compared across
+Baseline, T0, T1, and T2.
